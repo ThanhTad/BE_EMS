@@ -105,23 +105,3 @@ Contributions are welcome! Please follow these steps:
 ## **License**
 
 This project is licensed under the [MIT License](LICENSE).
-
----
-
-## **Contact**
-
-For questions or feedback, please contact:
-
-- **Name**: Your Name
-- **Email**: your-email@example.com
-- **GitHub**: [your-username](https://github.com/your-username)
-
-```
-
-### Key Points:
-1. This version is structured professionally for better readability and usability.
-2. Replace placeholders (e.g., `your-username`, `your-email@example.com`, etc.) with your actual project information.
-3. If there are specific libraries or frameworks you're using in the frontend, include them under the **Tech Stack** section.
-
-Let me know if you need further customization! 🚀
-```
