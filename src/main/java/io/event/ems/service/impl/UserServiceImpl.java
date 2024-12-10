@@ -9,7 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import io.event.ems.dto.UserDTO;
+import io.event.ems.dto.UserRequestDTO;
+import io.event.ems.dto.UserResponseDTO;
 import io.event.ems.exception.DuplicateEmailException;
 import io.event.ems.exception.DuplicateUsernameException;
 import io.event.ems.exception.InvalidPasswordException;
@@ -35,54 +36,54 @@ public class UserServiceImpl implements UserService {
     private final StatusCodeRepository statusCodeRepository;
     
     @Override
-    public UserDTO createUser(UserDTO userDTO) {
-        if(isUsernameExists(userDTO.getUsername())){
+    public UserResponseDTO createUser(UserRequestDTO userRequestDTO) {
+        if(isUsernameExists(userRequestDTO.getUsername())){
             throw new DuplicateUsernameException("Username already exists");
         }
 
-        if(isUsernameExists(userDTO.getEmail())){
+        if(isUsernameExists(userRequestDTO.getEmail())){
             throw new DuplicateEmailException("Email already exists");
         }
 
         StatusCode userStatus = statusCodeRepository.findByEntityTypeAndStatus("USER", "ACTIVE")
                                     .orElseThrow(() -> new StatusNotFoundException("Status not found"));
-        User user = userMapper.toEntity(userDTO);
-        user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
+        User user = userMapper.toEntity(userRequestDTO);
+        user.setPassword(passwordEncoder.encode(userRequestDTO.getPassword()));
         user.setStatus(userStatus);
         user.setRole(Role.USER);
-        return userMapper.toDTO(userRepository.save(user));
+        return userMapper.toResponseDTO(userRepository.save(user));
         
     }
 
     @Override
-    public UserDTO updateUser(UUID id, UserDTO userDTO) {
+    public UserResponseDTO updateUser(UUID id, UserRequestDTO userRequestDTO) {
         User user = userRepository.findById(id)
                         .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
-        if(userDTO.getUsername() != null){
-            if(isUsernameExists(userDTO.getUsername()) && !userDTO.getUsername().equals(user.getUsername())){
+        if(userRequestDTO.getUsername() != null){
+            if(isUsernameExists(userRequestDTO.getUsername()) && !userRequestDTO.getUsername().equals(user.getUsername())){
                 throw new DuplicateUsernameException("Username already exists");
             }
-            user.setUsername(userDTO.getUsername());
+            user.setUsername(userRequestDTO.getUsername());
         }
 
-        if(userDTO.getEmail() != null){
-            if(isEmailExists(userDTO.getEmail()) && !userDTO.getEmail().equals(user.getEmail())){
+        if(userRequestDTO.getEmail() != null){
+            if(isEmailExists(userRequestDTO.getEmail()) && !userRequestDTO.getEmail().equals(user.getEmail())){
                 throw new DuplicateEmailException("Email already exists");
             }
-            user.setEmail(userDTO.getEmail());
+            user.setEmail(userRequestDTO.getEmail());
         }
 
-        if(userDTO.getFullName() != null)
-            user.setFullName(userDTO.getFullName());
-        if (userDTO.getPhone() != null)
-            user.setPhone(userDTO.getPhone());
-        if (userDTO.getAvatarUrl() != null)
-            user.setAvatarUrl(userDTO.getAvatarUrl());
-        if (userDTO.getRole() != null)
-            user.setRole(Role.valueOf(userDTO.getRole().toUpperCase()));
+        if(userRequestDTO.getFullName() != null)
+            user.setFullName(userRequestDTO.getFullName());
+        if (userRequestDTO.getPhone() != null)
+            user.setPhone(userRequestDTO.getPhone());
+        if (userRequestDTO.getAvatarUrl() != null)
+            user.setAvatarUrl(userRequestDTO.getAvatarUrl());
+        if (userRequestDTO.getRole() != null)
+            user.setRole(Role.valueOf(userRequestDTO.getRole().toUpperCase()));
 
-        userMapper.updateUserFromDto(userDTO, user);
-        return userMapper.toDTO(userRepository.save(user));
+        userMapper.updateUserFromDto(userRequestDTO, user);
+        return userMapper.toResponseDTO(userRepository.save(user));
 
     }
 
@@ -96,29 +97,29 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<UserDTO> getUserById(UUID id) {
+    public Optional<UserResponseDTO> getUserById(UUID id) {
         if(!userRepository.existsById(id)){
             throw new UserNotFoundException("User does not exists");
         }
         return userRepository.findById(id)
-                    .map(userMapper::toDTO);
+                    .map(userMapper::toResponseDTO);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserDTO> getAllUsers(Pageable pageable) {
+    public Page<UserResponseDTO> getAllUsers(Pageable pageable) {
         return userRepository.findAll(pageable)
-                    .map(userMapper::toDTO);
+                    .map(userMapper::toResponseDTO);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserDTO> searchUsers(String keyword, Pageable pageable) {
+    public Page<UserResponseDTO> searchUsers(String keyword, Pageable pageable) {
         if(keyword == null || keyword.trim().isEmpty()){
             return getAllUsers(pageable);
         }
         return userRepository.searchUser(keyword, pageable)
-                    .map(userMapper::toDTO);
+                    .map(userMapper::toResponseDTO);
     }
 
     @Override
@@ -135,16 +136,16 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<UserDTO> getUserByUsername(String username) {
+    public Optional<UserResponseDTO> getUserByUsername(String username) {
         return userRepository.findByUsername(username)
-                    .map(userMapper::toDTO);
+                    .map(userMapper::toResponseDTO);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<UserDTO> getUserByEmail(String email) {
+    public Optional<UserResponseDTO> getUserByEmail(String email) {
         return userRepository.findByEmail(email)
-                    .map(userMapper::toDTO);
+                    .map(userMapper::toResponseDTO);
     }
 
     @Override
@@ -158,9 +159,9 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<UserDTO> findByUsernameOrEmail(String usernameOrEmail) {
+    public Optional<UserResponseDTO> findByUsernameOrEmail(String usernameOrEmail) {
         return userRepository.findByUsernameOrEmail(usernameOrEmail, usernameOrEmail)
-                    .map(userMapper::toDTO);
+                    .map(userMapper::toResponseDTO);
     }
 
     @Override

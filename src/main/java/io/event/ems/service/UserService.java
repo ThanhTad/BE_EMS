@@ -6,36 +6,37 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import io.event.ems.dto.UserDTO;
+import io.event.ems.dto.UserRequestDTO;
+import io.event.ems.dto.UserResponseDTO;
 import io.event.ems.exception.InvalidPasswordException;
 
 public interface UserService {
 
-    UserDTO createUser(UserDTO userDTO);
+    UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
-    UserDTO updateUser(UUID id, UserDTO userDTO);
+    UserResponseDTO updateUser(UUID id, UserRequestDTO userRequestDTO);
 
     void delete(UUID id);
 
-    Optional<UserDTO> getUserById(UUID id);
+    Optional<UserResponseDTO> getUserById(UUID id);
 
-    Page<UserDTO> getAllUsers(Pageable pageable);
+    Page<UserResponseDTO> getAllUsers(Pageable pageable);
 
-    Page<UserDTO> searchUsers(String keyword, Pageable pageable);
+    Page<UserResponseDTO> searchUsers(String keyword, Pageable pageable);
 
     boolean isUsernameExists(String username);
 
     boolean isEmailExists(String email);
 
-    Optional<UserDTO> getUserByUsername(String username);
+    Optional<UserResponseDTO> getUserByUsername(String username);
 
-    Optional<UserDTO> getUserByEmail(String email);
+    Optional<UserResponseDTO> getUserByEmail(String email);
 
     void enableUser(UUID id);
 
     void disableUser(UUID id);
 
-    Optional<UserDTO> findByUsernameOrEmail(String usernameOrEmail);
+    Optional<UserResponseDTO> findByUsernameOrEmail(String usernameOrEmail);
 
     void resetPassword(UUID id, String newPass);
 
