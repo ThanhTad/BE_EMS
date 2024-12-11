@@ -4,6 +4,7 @@ import java.sql.Timestamp;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UuidGenerator;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -25,6 +26,7 @@ import lombok.NoArgsConstructor;
 public class User {
 
     @Id
+    @UuidGenerator(style = UuidGenerator.Style.RANDOM)
     @Column(columnDefinition = "uuid")
     private UUID id;
 
