@@ -14,6 +14,9 @@ public interface UserMapper {
 
     UserResponseDTO toResponseDTO(User user);
 
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "lastLogin", ignore = true)
+    @Mapping(target = "status", ignore = true)
     User toEntity(UserRequestDTO userRequestDTO);
 
     @Mapping(target = "id", ignore = true)

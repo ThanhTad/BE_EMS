@@ -48,7 +48,11 @@ public class UserServiceImpl implements UserService {
         StatusCode userStatus = statusCodeRepository.findByEntityTypeAndStatus("USER", "ACTIVE")
                                     .orElseThrow(() -> new StatusNotFoundException("Status not found"));
         User user = userMapper.toEntity(userRequestDTO);
-        user.setPassword(passwordEncoder.encode(userRequestDTO.getPassword()));
+
+        if(userRequestDTO.getPassword() != null && !userRequestDTO.getPassword().isEmpty()){
+            user.setPassword(passwordEncoder.encode(userRequestDTO.getPassword()));
+        }
+        
         user.setStatus(userStatus);
         user.setRole(Role.USER);
         return userMapper.toResponseDTO(userRepository.save(user));
@@ -59,6 +63,7 @@ public class UserServiceImpl implements UserService {
     public UserResponseDTO updateUser(UUID id, UserRequestDTO userRequestDTO) {
         User user = userRepository.findById(id)
                         .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+        
         if(userRequestDTO.getUsername() != null){
             if(isUsernameExists(userRequestDTO.getUsername()) && !userRequestDTO.getUsername().equals(user.getUsername())){
                 throw new DuplicateUsernameException("Username already exists");
@@ -98,9 +103,6 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public Optional<UserResponseDTO> getUserById(UUID id) {
-        if(!userRepository.existsById(id)){
-            throw new UserNotFoundException("User does not exists");
-        }
         return userRepository.findById(id)
                     .map(userMapper::toResponseDTO);
     }
@@ -137,15 +139,17 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public Optional<UserResponseDTO> getUserByUsername(String username) {
-        return userRepository.findByUsername(username)
-                    .map(userMapper::toResponseDTO);
+        return Optional.ofNullable(userRepository.findByUsername(username)
+                    .map(userMapper::toResponseDTO)
+                    .orElseThrow(() -> new UserNotFoundException("User not found with username: " + username)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<UserResponseDTO> getUserByEmail(String email) {
-        return userRepository.findByEmail(email)
-                    .map(userMapper::toResponseDTO);
+        return Optional.ofNullable(userRepository.findByEmail(email)
+                    .map(userMapper::toResponseDTO)
+                    .orElseThrow(() -> new UserNotFoundException("User not found with email: " + email)));
     }
 
     @Override
@@ -177,6 +181,7 @@ public class UserServiceImpl implements UserService {
     public void changePassword(UUID id, String newPassword, String currentPassword) throws InvalidPasswordException {
         User user = userRepository.findById(id)
                         .orElseThrow(() -> new UserNotFoundException("User not found"));
+                        
         if(!passwordEncoder.matches(currentPassword, user.getPassword())){
             throw new InvalidPasswordException("Incorrect current password");
         }
