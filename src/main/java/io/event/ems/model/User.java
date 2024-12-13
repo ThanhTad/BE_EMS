@@ -1,6 +1,6 @@
 package io.event.ems.model;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -54,9 +54,9 @@ public class User {
 
     @Column(nullable = false, updatable = false)
     @CreationTimestamp
-    private Timestamp createdAt;
+    private LocalDateTime createdAt;
 
-    private Timestamp lastLogin;
+    private LocalDateTime lastLogin;
 
     @Column(columnDefinition = "boolean deafault false")
     private Boolean emailVerified;
