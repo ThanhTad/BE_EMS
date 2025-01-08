@@ -10,6 +10,7 @@ import io.event.ems.model.StatusCode;
 @Repository
 public interface StatusCodeRepository extends JpaRepository<StatusCode, Integer> {
 
+    boolean existsByEntityTypeAndStatus(String entityType, String status);
     Optional<StatusCode> findByEntityTypeAndStatus(String entityType, String status);
 
 }
