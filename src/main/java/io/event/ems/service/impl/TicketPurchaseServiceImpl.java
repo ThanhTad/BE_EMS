@@ -58,7 +58,7 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Status not found with id: " + ticketPurchaseDTO.getStatusId()));
         
         // Check if the user has already purchased the same ticket
-        if(ticketPurchaseRepository.existByUserAndTicket(user, ticket)){
+        if(ticketPurchaseRepository.existsByUserAndTicket(user, ticket)){
             throw new DuplicateResourceException("User has already purchased this ticket");
         }
 
@@ -110,7 +110,7 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketPurchaseDTO.getTicketId()));
             
             // Check if the user has already purchased the same ticket
-            if(ticketPurchaseRepository.existByUserAndTicket(ticketPurchase.getUser(), ticket)){
+            if(ticketPurchaseRepository.existsByUserAndTicket(ticketPurchase.getUser(), ticket)){
                 throw new IllegalArgumentException("User has already purchased this ticket");
             }
             ticketPurchase.setTicket(ticket);

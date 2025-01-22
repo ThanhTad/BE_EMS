@@ -17,6 +17,6 @@ public interface TicketPurchaseRepository extends JpaRepository<TicketPurchase, 
     Page<TicketPurchase> findByUserId(UUID userId, Pageable pageable);
     Page<TicketPurchase> findByTicketId(UUID ticketId, Pageable pageable);
     Page<TicketPurchase> findByStatusId(Integer statusId, Pageable pageable);
-    boolean existByUserAndTicket(User user, Ticket ticket);
+    boolean existsByUserAndTicket(User user, Ticket ticket);
 
 }
