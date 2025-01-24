@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.event.ems.dto.ApiResponse;
@@ -50,14 +50,14 @@ public class CategoryController {
 
     @PostMapping
     @Operation(summary = "Create a new category", description = "Create a new category and return the created category.")
-    public ResponseEntity<ApiResponse<CategoryDTO>> createCategory(@RequestParam CategoryDTO categoryDTO){
+    public ResponseEntity<ApiResponse<CategoryDTO>> createCategory(@RequestBody CategoryDTO categoryDTO){
         CategoryDTO createdCategory = categoryService.createCategory(categoryDTO);
         return ResponseEntity.ok(ApiResponse.success(createdCategory));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update category", description = "Updates an existing category by its Id.")
-    public ResponseEntity<ApiResponse<CategoryDTO>> updateCategory(@PathVariable UUID id, @RequestParam CategoryDTO categoryDTO){
+    public ResponseEntity<ApiResponse<CategoryDTO>> updateCategory(@PathVariable UUID id, @RequestBody CategoryDTO categoryDTO){
         CategoryDTO updatedCategory = categoryService.updateCategory(id, categoryDTO);
         return ResponseEntity.ok(ApiResponse.success(updatedCategory));
     }
@@ -66,7 +66,7 @@ public class CategoryController {
     @Operation(summary = "Delete category", description = "Deletes a category by its Id.")
     public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable UUID id){
         categoryService.deleteCategory(id);
-        return ResponseEntity.ok(ApiResponse.success(null));
+        return ResponseEntity.noContent().build();
     }
 
 }
