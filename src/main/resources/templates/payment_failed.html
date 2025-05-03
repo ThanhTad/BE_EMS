@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thanh toán thất bại</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f4f7f6;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+      .container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 40px 50px;
+        text-align: center;
+        max-width: 500px;
+        width: 90%;
+        border-top: 5px solid #f44336; /* Red accent */
+      }
+      .icon {
+        font-size: 60px;
+        color: #f44336;
+        margin-bottom: 20px;
+      }
+      h1 {
+        color: #333;
+        font-size: 28px;
+        margin-bottom: 15px;
+      }
+      p {
+        color: #555;
+        font-size: 16px;
+        line-height: 1.6;
+        margin-bottom: 25px;
+      }
+      .error-details {
+        font-size: 14px;
+        color: #777;
+        margin-top: -15px;
+        margin-bottom: 25px;
+      }
+      .order-id {
+        font-weight: bold;
+        color: #333;
+        background-color: #ffebee; /* Light red background */
+        padding: 8px 15px;
+        border-radius: 4px;
+        display: inline-block;
+        margin-top: 10px;
+      }
+      .cta-button {
+        display: inline-block;
+        background-color: #f44336;
+        color: white;
+        padding: 12px 25px;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 16px;
+        font-weight: 500;
+        transition: background-color 0.3s ease;
+        margin-top: 10px;
+        margin-right: 10px; /* Space between buttons */
+      }
+      .cta-button:hover {
+        background-color: #e53935;
+      }
+      .secondary-button {
+        background-color: #f1f1f1;
+        color: #555;
+        border: 1px solid #ddd;
+      }
+      .secondary-button:hover {
+        background-color: #e0e0e0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="icon">✘</div>
+      <!-- Cross mark icon -->
+      <h1>Thanh toán thất bại!</h1>
+      <p th:text="${message}">Thông báo mặc định nếu message null.</p>
+      <p th:if="${orderId}" class="error-details">
+        Mã đơn hàng tham chiếu:
+        <span class="order-id" th:text="${orderId}">[Mã đơn hàng]</span>
+      </p>
+      <p>Vui lòng thử lại hoặc liên hệ bộ phận hỗ trợ nếu bạn cần trợ giúp.</p>
+      <div>
+        <!-- Nút thử lại có thể link về trang giỏ hàng hoặc trang thanh toán trước đó -->
+        <a href="/cart" class="cta-button">Thử lại</a>
+        <a href="/" class="cta-button secondary-button">Quay về trang chủ</a>
+        <!-- Hoặc link đến trang liên hệ -->
+        <!-- <a href="/contact" class="cta-button secondary-button">Liên hệ hỗ trợ</a> -->
+      </div>
+    </div>
+  </body>
+</html>
