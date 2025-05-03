@@ -24,7 +24,7 @@ public class EventParticipantDTO {
     private Integer statusId;
     
     @Min(value = 0, message = "Additional guests must be at least 0")
-    private Integer additionalGuest;
+    private Integer additionalGuests;
 
 
 }

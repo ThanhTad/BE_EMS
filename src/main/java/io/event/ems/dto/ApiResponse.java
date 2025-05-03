@@ -25,25 +25,29 @@ public class ApiResponse<T> {
         this.message = message;
         this.timestamp = LocalDateTime.now();
     }
-    
-    public static <T> ApiResponse<T> success(String message, T data){
+
+    public static <T> ApiResponse<T> success(String message, T data) {
         return new ApiResponse<>(HttpStatus.OK, message, data);
     }
 
-    public static <T> ApiResponse<T> success(T data){
+    public static <T> ApiResponse<T> success(T data) {
         return new ApiResponse<>(HttpStatus.OK, "Success", data);
     }
 
-    public static <T> ApiResponse<T> error(HttpStatus status, String message){
+    public static <T> ApiResponse<T> error(HttpStatus status, String message) {
         return new ApiResponse<>(status, message, null);
     }
 
-    public static <T> ApiResponse<T> error(HttpStatus status, String message, T data){
+    public static <T> ApiResponse<T> error(HttpStatus status, String message, T data) {
         return new ApiResponse<>(status, message, data);
     }
 
-    public static <T> ApiResponse<T> created(T data){
-        return new ApiResponse<>(HttpStatus.CREATED,"Created", data);
+    public static <T> ApiResponse<T> created(T data) {
+        return new ApiResponse<>(HttpStatus.CREATED, "Created", data);
+    }
+
+    public static <T> ApiResponse<T> accepted(String message) {
+        return new ApiResponse<>(HttpStatus.ACCEPTED, message);
     }
 
 }

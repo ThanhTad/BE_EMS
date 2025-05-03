@@ -64,7 +64,7 @@ public class EventParticipantServiceImpl implements EventParticipantService {
         eventParticipant.setEvent(event);
         eventParticipant.setStatus(status);
 
-        event.setCurrentParticipants(event.getCurrentParticipants() + 1 + eventParticipantDTO.getAdditionalGuest());
+        event.setCurrentParticipants(event.getCurrentParticipants() + 1 + eventParticipantDTO.getAdditionalGuests());
         eventRepository.save(event);
 
         EventParticipant saveEventParticipant = repository.save(eventParticipant);
@@ -87,13 +87,13 @@ public class EventParticipantServiceImpl implements EventParticipantService {
                 throw new IllegalArgumentException("User has already registered for this event");
             }
 
-            event.setCurrentParticipants(Math.max(0, event.getCurrentParticipants() - 1 - eventParticipant.getAdditionalGuest()));
+            event.setCurrentParticipants(Math.max(0, event.getCurrentParticipants() - 1 - eventParticipant.getAdditionalGuests()));
             eventRepository.save(event);
 
             eventParticipant.setEvent(event);
 
             event = newEvent;
-            event.setCurrentParticipants(event.getCurrentParticipants() + 1 + eventParticipantDTO.getAdditionalGuest());
+            event.setCurrentParticipants(event.getCurrentParticipants() + 1 + eventParticipantDTO.getAdditionalGuests());
             eventRepository.save(event);
 
         }
@@ -117,11 +117,11 @@ public class EventParticipantServiceImpl implements EventParticipantService {
             eventParticipant.setStatus(status);
         }
 
-        if(eventParticipantDTO.getAdditionalGuest() != null && !eventParticipantDTO.getAdditionalGuest().equals(eventParticipant.getAdditionalGuest())){
-            int oldAddGuest = eventParticipant.getAdditionalGuest();
-            int newAddGuest = eventParticipantDTO.getAdditionalGuest();
+        if(eventParticipantDTO.getAdditionalGuests() != null && !eventParticipantDTO.getAdditionalGuests().equals(eventParticipant.getAdditionalGuests())){
+            int oldAddGuest = eventParticipant.getAdditionalGuests();
+            int newAddGuest = eventParticipantDTO.getAdditionalGuests();
             event.setCurrentParticipants(event.getCurrentParticipants() + newAddGuest - oldAddGuest);
-            eventParticipant.setAdditionalGuest(newAddGuest);
+            eventParticipant.setAdditionalGuests(newAddGuest);
             eventRepository.save(event);
         }
 
@@ -137,7 +137,7 @@ public class EventParticipantServiceImpl implements EventParticipantService {
                             .orElseThrow(() -> new ResourceNotFoundException("Event participant not found with id: " + id));
        
         Event event = eventParticipant.getEvent();
-        event.setCurrentParticipants(Math.max(0, event.getCurrentParticipants() - 1 - eventParticipant.getAdditionalGuest()));
+        event.setCurrentParticipants(Math.max(0, event.getCurrentParticipants() - 1 - eventParticipant.getAdditionalGuests()));
         eventRepository.save(event);
 
         repository.delete(eventParticipant);

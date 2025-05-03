@@ -17,7 +17,7 @@ import lombok.Data;
 
 @Entity
 @Data
-@Table(name = "event_paticipants", uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "user_id"}))
+@Table(name = "event_participants", uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "user_id"}))
 public class EventParticipant {
 
     @Id
@@ -41,7 +41,7 @@ public class EventParticipant {
     @JoinColumn(name = "status_id")
     private StatusCode status;
 
-    private Integer additionalGuest = 0;
+    private Integer additionalGuests = 0;
 
 
 }
