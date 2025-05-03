@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import io.event.ems.dto.UserRequestDTO;
 import io.event.ems.dto.UserResponseDTO;
@@ -43,4 +44,6 @@ public interface UserService {
     void changePassword(UUID id, String newPassword, String currentPassword) throws InvalidPasswordException;
 
     void verifyEmail(UUID id);
+
+    String storeAvatar(UUID userId, MultipartFile file);
 }

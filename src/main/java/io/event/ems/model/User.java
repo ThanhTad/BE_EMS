@@ -64,6 +64,4 @@ public class User {
     @Column(columnDefinition = "boolean deafault false")
     private Boolean twoFactorEnabled;
 
-    
-
 }
