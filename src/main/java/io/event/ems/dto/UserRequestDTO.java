@@ -40,5 +40,4 @@ public class UserRequestDTO {
     private Boolean emailVerified = false;
     private Boolean twoFactorEnabled = false;
 
-
 }

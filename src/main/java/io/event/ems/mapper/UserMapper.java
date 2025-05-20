@@ -17,6 +17,7 @@ public interface UserMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "lastLogin", ignore = true)
     @Mapping(target = "status", ignore = true)
+    @Mapping(target = "settings", ignore = true)
     User toEntity(UserRequestDTO userRequestDTO);
 
     @Mapping(target = "id", ignore = true)
@@ -26,6 +27,7 @@ public interface UserMapper {
     @Mapping(target = "lastLogin", ignore = true)
     @Mapping(target = "emailVerified", ignore = true)
     @Mapping(target = "twoFactorEnabled", ignore = true)
+    @Mapping(target = "settings", ignore = true)
     void updateUserFromDto(UserRequestDTO dto, @MappingTarget User entity);
 
 }

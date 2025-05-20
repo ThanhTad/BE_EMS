@@ -218,4 +218,10 @@ public class UserServiceImpl implements UserService {
         return url;
     }
 
+    @Override
+    public Page<UserResponseDTO> getUsersByRole(String role, Pageable pageable) {
+        return userRepository.findByRole(role, pageable)
+                .map(userMapper::toResponseDTO);
+    }
+
 }

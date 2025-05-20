@@ -16,8 +16,13 @@ import io.event.ems.model.User;
 public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByUsername(String username);
+
     Optional<User> findByEmail(String email);
+
+    Page<User> findByRole(String role, Pageable pageable);
+
     boolean existsByUsername(String username);
+
     boolean existsByEmail(String email);
 
     @Query("SELECT u FROM User u WHERE u.username LIKE %:keyword% OR u.fullName LIKE %:keyword%")

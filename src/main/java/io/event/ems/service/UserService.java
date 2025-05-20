@@ -23,6 +23,8 @@ public interface UserService {
 
     Page<UserResponseDTO> getAllUsers(Pageable pageable);
 
+    Page<UserResponseDTO> getUsersByRole(String role, Pageable pageable);
+
     Page<UserResponseDTO> searchUsers(String keyword, Pageable pageable);
 
     boolean isUsernameExists(String username);
@@ -46,4 +48,5 @@ public interface UserService {
     void verifyEmail(UUID id);
 
     String storeAvatar(UUID userId, MultipartFile file);
+
 }

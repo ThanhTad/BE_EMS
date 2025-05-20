@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.data.domain.Sort;
 
 import io.event.ems.dto.UserRequestDTO;
 import io.event.ems.dto.UserResponseDTO;
@@ -28,7 +30,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 public class UserController {
 
@@ -48,14 +50,21 @@ public class UserController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<UserResponseDTO>> getAllUsers(Pageable pageable) {
-        Page<UserResponseDTO> users = userService.getAllUsers(pageable);
+    public ResponseEntity<Page<UserResponseDTO>> getAllUsers(
+            @RequestParam(value = "role", required = false) String role,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<UserResponseDTO> users;
+        if (role != null) {
+            users = userService.getUsersByRole(role, pageable);
+        } else {
+            users = userService.getAllUsers(pageable);
+        }
         return new ResponseEntity<>(users, HttpStatus.OK);
     }
 
     @GetMapping("/search")
     public ResponseEntity<Page<UserResponseDTO>> searchUsers(@RequestParam("keyword") String keyword,
-            Pageable pageable) {
+            @PageableDefault(size = 10, sort = "username", direction = Sort.Direction.ASC) Pageable pageable) {
         Page<UserResponseDTO> users = userService.searchUsers(keyword, pageable);
         return new ResponseEntity<>(users, HttpStatus.OK);
     }
