@@ -14,14 +14,23 @@ import io.event.ems.exception.ResourceNotFoundException;
 public interface EventService {
 
     EventResponseDTO createEvent(EventRequestDTO eventRequestDTO);
+
     Optional<EventResponseDTO> getEventById(UUID id) throws ResourceNotFoundException;
+
     Page<EventResponseDTO> getAllEvents(Pageable pageable);
+
     Page<EventResponseDTO> searchEvents(String keyword, Pageable pageable);
+
     EventResponseDTO updateEvent(UUID id, EventRequestDTO eventRequestDTO) throws ResourceNotFoundException;
+
     void deleteEvent(UUID id) throws ResourceNotFoundException;
+
     Page<EventResponseDTO> getEventByCreatorId(UUID creatorId, Pageable pageable);
-    Page<EventResponseDTO> getEventByCategoryId(UUID categoryId, Pageable pageable);
+
+    Page<EventResponseDTO> findByCategories_Id(UUID categoryId, Pageable pageable);
+
     Page<EventResponseDTO> getEventByStatusId(Integer statusId, Pageable pageable);
-    Page<EventResponseDTO>  getEventByStartDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
+
+    Page<EventResponseDTO> getEventByStartDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
 
 }

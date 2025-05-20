@@ -105,7 +105,7 @@ public class EventController {
     public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getEventsByCategoryId(
             @PathVariable UUID categoryId,
             @PageableDefault(size = 6) Pageable pageable) {
-        Page<EventResponseDTO> events = eventService.getEventByCategoryId(categoryId, pageable);
+        Page<EventResponseDTO> events = eventService.findByCategories_Id(categoryId, pageable);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 

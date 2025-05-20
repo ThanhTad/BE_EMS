@@ -8,12 +8,14 @@ import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.event.ems.exception.FileStorageException;
 import io.event.ems.service.FileStorageService;
 
+@Service
 public class LocalFileStorageService implements FileStorageService {
 
     @Value("${file.storage.location}")

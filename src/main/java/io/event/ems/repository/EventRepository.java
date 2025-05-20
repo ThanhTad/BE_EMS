@@ -16,9 +16,13 @@ import io.event.ems.model.Event;
 public interface EventRepository extends JpaRepository<Event, UUID> {
 
     Page<Event> findByTitleContainingIgnoreCase(String title, Pageable pageable);
+
     Page<Event> findByCreatorId(UUID id, Pageable pageable);
-    Page<Event> findByCategoryId(UUID id, Pageable pageable);
+
+    Page<Event> findByCategories_Id(UUID id, Pageable pageable);
+
     Page<Event> findByStatusId(Integer id, Pageable pageable);
+
     Page<Event> findByStartDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
 
     @Query("SELECT e FROM Event e WHERE " +

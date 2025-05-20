@@ -332,4 +332,18 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
         }
     }
 
+    @Override
+    public TicketPurchaseDTO confirmPurchase(UUID purchaseId) throws ResourceNotFoundException {
+        TicketPurchase ticketPurchase = ticketPurchaseRepository.findById(purchaseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Purchase not found: " + purchaseId));
+        StatusCode successStatus = statusCodeRepository.findByEntityTypeAndStatus("TICKET_PURCHASE", "SUCCESS")
+                .orElseThrow(() -> new ResourceNotFoundException("SUCCESS status not configured"));
+
+        ticketPurchase.setStatus(successStatus);
+        TicketPurchase updated = ticketPurchaseRepository.save(ticketPurchase);
+
+        log.info("Purchase {} confirmed via skip-payment", updated);
+        return ticketPurchaseMapper.toDTO(updated);
+    }
+
 }

@@ -1,6 +1,7 @@
 package io.event.ems.model;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -10,6 +11,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Size;
@@ -43,12 +46,12 @@ public class Event {
     @Size(max = 255)
     private String address;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "category_id")
-    private Category category;
+    @ManyToMany
+    @JoinTable(name = "event_categories", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "category_id"))
+    private Set<Category> categories;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "creator_id",  nullable = false)
+    @JoinColumn(name = "creator_id", nullable = false)
     private User creator;
 
     @Column(name = "max_participants")
@@ -80,6 +83,5 @@ public class Event {
 
     private Double latitude;
     private Double longitude;
-
 
 }

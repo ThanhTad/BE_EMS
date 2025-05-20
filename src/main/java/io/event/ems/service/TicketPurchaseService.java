@@ -36,4 +36,6 @@ public interface TicketPurchaseService {
 
         boolean verifyVnPayReturn(HttpServletRequest request);
 
+        TicketPurchaseDTO confirmPurchase(UUID purchaseId) throws ResourceNotFoundException;
+
 }

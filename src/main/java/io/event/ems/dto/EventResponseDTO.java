@@ -1,6 +1,7 @@
 package io.event.ems.dto;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 import io.event.ems.model.StatusCode;
@@ -20,7 +21,7 @@ public class EventResponseDTO {
     private LocalDateTime endDate;
     private String location;
     private String address;
-    private CategoryDTO category;
+    private Set<CategoryDTO> categories;
     private UserResponseDTO creator;
     private Integer maxParticipants;
     private Integer currentParticipants;
@@ -32,6 +33,5 @@ public class EventResponseDTO {
     private String coverImageUrl;
     private Double latitude;
     private Double longitude;
-
 
 }

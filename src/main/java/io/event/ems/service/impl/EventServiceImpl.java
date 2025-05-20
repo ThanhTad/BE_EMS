@@ -2,7 +2,9 @@ package io.event.ems.service.impl;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,56 +40,64 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventResponseDTO createEvent(EventRequestDTO eventRequestDTO) {
         User creator = userRepository.findById(eventRequestDTO.getCreatorId())
-                            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + eventRequestDTO.getCreatorId()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User not found with id: " + eventRequestDTO.getCreatorId()));
         StatusCode statusCode = statusCodeRepository.findByEntityTypeAndStatus("EVENT", "PUBLISHED")
-                                    .orElseThrow(() -> new ResourceNotFoundException("Status not found with Entity: EVENT and Status: PUBLISHED"));
-        
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Status not found with Entity: EVENT and Status: PUBLISHED"));
+
         Event event = eventMapper.toEntity(eventRequestDTO);
         event.setCreator(creator);
         event.setStatus(statusCode);
         event.setCurrentParticipants(0);
 
-        if(eventRequestDTO.getCategoryId() != null){
-            Category category = categoryRepository.findById(eventRequestDTO.getCategoryId())
-                                    .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + eventRequestDTO.getCategoryId()));
-            event.setCategory(category);
+        Set<Category> categories = categoryRepository.findAllById(eventRequestDTO.getCategoryIds())
+                .stream().collect(Collectors.toSet());
+
+        if (categories.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "No valid categories found for ids: " + eventRequestDTO.getCategoryIds());
         }
+        event.setCategories(categories);
         Event savedEvent = eventRepository.save(event);
         return eventMapper.toDTO(savedEvent);
     }
 
     @Override
-    public Optional<EventResponseDTO>  getEventById(UUID id) throws ResourceNotFoundException {
+    public Optional<EventResponseDTO> getEventById(UUID id) throws ResourceNotFoundException {
         return eventRepository.findById(id)
-                    .map(eventMapper::toDTO); 
+                .map(eventMapper::toDTO);
     }
 
     @Override
     public Page<EventResponseDTO> getAllEvents(Pageable pageable) {
         return eventRepository.findAll(pageable)
-                    .map(eventMapper::toDTO);
+                .map(eventMapper::toDTO);
     }
 
     @Override
     public Page<EventResponseDTO> searchEvents(String keyword, Pageable pageable) {
-        if(keyword == null || keyword.trim().isEmpty()){
+        if (keyword == null || keyword.trim().isEmpty()) {
             return getAllEvents(pageable);
         }
 
         return eventRepository.searchEvents(keyword, pageable)
-                    .map(eventMapper::toDTO);
+                .map(eventMapper::toDTO);
     }
 
     @Override
     public EventResponseDTO updateEvent(UUID id, EventRequestDTO eventRequestDTO) throws ResourceNotFoundException {
         Event event = eventRepository.findById(id)
-                        .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
-        if(eventRequestDTO.getCategoryId() != null){
-            Category category = categoryRepository.findById(eventRequestDTO.getCategoryId())
-                                    .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + eventRequestDTO.getCategoryId()));
-            event.setCategory(category);
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
+
+        Set<Category> categories = categoryRepository.findAllById(eventRequestDTO.getCategoryIds())
+                .stream().collect(Collectors.toSet());
+        if (categories.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "No valid categories found for ids: " + eventRequestDTO.getCategoryIds());
         }
-        
+        event.setCategories(categories);
+
         eventMapper.updateEventFromDTO(eventRequestDTO, event);
         Event updatedEvent = eventRepository.save(event);
         return eventMapper.toDTO(updatedEvent);
@@ -95,7 +105,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public void deleteEvent(UUID id) throws ResourceNotFoundException {
-        if(!eventRepository.existsById(id)){
+        if (!eventRepository.existsById(id)) {
             throw new ResourceNotFoundException("Event not found with id: " + id);
         }
         eventRepository.deleteById(id);
@@ -104,25 +114,26 @@ public class EventServiceImpl implements EventService {
     @Override
     public Page<EventResponseDTO> getEventByCreatorId(UUID creatorId, Pageable pageable) {
         return eventRepository.findByCreatorId(creatorId, pageable)
-                    .map(eventMapper::toDTO);
+                .map(eventMapper::toDTO);
     }
 
     @Override
-    public Page<EventResponseDTO> getEventByCategoryId(UUID categoryId, Pageable pageable) {
-        return eventRepository.findByCategoryId(categoryId, pageable)
-                    .map(eventMapper::toDTO);
+    public Page<EventResponseDTO> findByCategories_Id(UUID categoryId, Pageable pageable) {
+        return eventRepository.findByCategories_Id(categoryId, pageable)
+                .map(eventMapper::toDTO);
     }
 
     @Override
     public Page<EventResponseDTO> getEventByStatusId(Integer statusId, Pageable pageable) {
         return eventRepository.findByStatusId(statusId, pageable)
-                    .map(eventMapper::toDTO);
+                .map(eventMapper::toDTO);
     }
 
     @Override
-    public Page<EventResponseDTO> getEventByStartDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable) {
-       return eventRepository.findByStartDateBetween(start, end, pageable)
-                    .map(eventMapper::toDTO);
+    public Page<EventResponseDTO> getEventByStartDateBetween(LocalDateTime start, LocalDateTime end,
+            Pageable pageable) {
+        return eventRepository.findByStartDateBetween(start, end, pageable)
+                .map(eventMapper::toDTO);
     }
 
 }

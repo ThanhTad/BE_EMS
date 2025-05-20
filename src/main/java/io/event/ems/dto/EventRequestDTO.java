@@ -1,11 +1,13 @@
 package io.event.ems.dto;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -37,7 +39,8 @@ public class EventRequestDTO {
 
     private String address;
 
-    private UUID categoryId;
+    @NotEmpty(message = "Phải chọn ít nhất 1 category")
+    private Set<@NotNull UUID> categoryIds;
 
     @NotNull(message = "Creator ID cannot be null")
     private UUID creatorId;

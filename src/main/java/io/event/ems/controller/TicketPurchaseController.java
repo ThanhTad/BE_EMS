@@ -107,4 +107,11 @@ public class TicketPurchaseController {
         return ResponseEntity.ok(ApiResponse.success(ticketPurchases));
     }
 
+    @PostMapping("/{id}/confirm")
+    @Operation(summary = "Confirm purchase without payment (for testing)", description = "Chuyển trạng thái đơn mua thành SUCCESS để test")
+    public ResponseEntity<ApiResponse<TicketPurchaseDTO>> confirmPurchase(@PathVariable("id") UUID purchaseID) {
+        TicketPurchaseDTO dto = ticketPurchaseService.confirmPurchase(purchaseID);
+        return ResponseEntity.ok(ApiResponse.success("Purchase confirmed", dto));
+    }
+
 }
