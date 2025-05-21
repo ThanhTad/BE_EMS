@@ -6,4 +6,6 @@ public interface EmailService {
 
     void sendQrCode(String toMail, String fullName, byte[] qrCodeImage);
 
+    public void sendWelcomeEmail(String to, String username);
+
 }

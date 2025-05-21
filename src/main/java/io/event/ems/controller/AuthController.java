@@ -1,27 +1,12 @@
 package io.event.ems.controller;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
-import io.event.ems.dto.ApiResponse;
-import io.event.ems.dto.Disable2FARequest;
-import io.event.ems.dto.Enable2FARequest;
-import io.event.ems.dto.LoginRequestDTO;
-import io.event.ems.dto.RefreshTokenRequest;
-import io.event.ems.dto.RequestPasswordResetRequest;
-import io.event.ems.dto.ResendOtpRequest;
-import io.event.ems.dto.ResetPasswordRequest;
-import io.event.ems.dto.SentOtpRequest;
-import io.event.ems.dto.TokenResponse;
-import io.event.ems.dto.VerifyOtpRequest;
+import org.springframework.web.bind.annotation.*;
+import io.event.ems.dto.*;
 import io.event.ems.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -34,17 +19,27 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    @Operation(summary = "Login with usernam and password")
-    public ResponseEntity<ApiResponse<TokenResponse>> login(@Valid @RequestBody LoginRequestDTO request) {
-        TokenResponse response = authService.login(request);
-        return ResponseEntity.ok(ApiResponse.success(response));
+    @Operation(summary = "Login with username and password")
+    public ResponseEntity<ApiResponse<TokenResponse>> login(
+            @Valid @RequestBody LoginRequestDTO request,
+            HttpServletResponse response) {
+        TokenResponse tokenResponse = authService.login(request, response);
+        return ResponseEntity.ok(ApiResponse.success(tokenResponse));
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequestDTO request) {
+        authService.register(request);
+        return ResponseEntity.ok(ApiResponse.success("Registration successful", null));
     }
 
     @PostMapping("/rf-token")
     @Operation(summary = "Refresh the access token using a valid refresh token")
-    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        TokenResponse response = authService.refreshToken(request);
-        return ResponseEntity.ok(ApiResponse.success(response));
+    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(
+            @Valid @RequestBody RefreshTokenRequest request,
+            HttpServletResponse response) {
+        TokenResponse tokenResponse = authService.refreshToken(request, response);
+        return ResponseEntity.ok(ApiResponse.success(tokenResponse));
     }
 
     @PostMapping("/pass-reset/request")
@@ -65,13 +60,15 @@ public class AuthController {
 
     @PostMapping("/logout")
     @Operation(summary = "Logout the user by invalidating the refresh token")
-    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request) {
-        authService.logout(request);
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @Valid @RequestBody RefreshTokenRequest request,
+            HttpServletResponse response) {
+        authService.logout(request, response);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/2fa/enable")
-    @Operation(summary = "Enable Two-Factor Auhthentication for the current user")
+    @Operation(summary = "Enable Two-Factor Authentication for the current user")
     public ResponseEntity<ApiResponse<Void>> enable2FA(@Valid @RequestBody Enable2FARequest request) {
         authService.enableTwoFactorAuth(request);
         return ResponseEntity.ok(ApiResponse.success("2FA has been enabled", null));
@@ -85,19 +82,20 @@ public class AuthController {
     }
 
     @PostMapping("/2fa/disable/sent-otp")
-    @Operation(summary = "Sent OTP for disable 2fa")
-    public ResponseEntity<ApiResponse<Void>> sentOTPToDisable2FA(@Valid @RequestParam SentOtpRequest request) {
+    @Operation(summary = "Send OTP for disable 2fa")
+    public ResponseEntity<ApiResponse<Void>> sentOTPToDisable2FA(@Valid @RequestBody SentOtpRequest request) {
         authService.sendOtpToDisable2FA(request);
         return ResponseEntity.ok(ApiResponse.success("OTP has been sent", null));
     }
 
     @PostMapping("/2fa/verify")
     @Operation(summary = "Verify 2FA OTP after successful password login")
-    public ResponseEntity<ApiResponse<TokenResponse>> verify(@RequestHeader("Authorization") String authorizationHeader,
-            @Valid @RequestBody VerifyOtpRequest request) {
-        TokenResponse response = authService.verifyTwoFactorOtp(authorizationHeader, request);
-        return ResponseEntity.ok(ApiResponse.success(response));
-
+    public ResponseEntity<ApiResponse<TokenResponse>> verify(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @Valid @RequestBody VerifyOtpRequest request,
+            HttpServletResponse response) {
+        TokenResponse tokenResponse = authService.verifyTwoFactorOtp(authorizationHeader, request, response);
+        return ResponseEntity.ok(ApiResponse.success(tokenResponse));
     }
 
     @PostMapping("/otp/resend")

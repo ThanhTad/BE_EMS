@@ -57,7 +57,7 @@ public class JwtService {
         extraClaims.put("userId", userId.toString());
         extraClaims.put("type", "refresh_token");
 
-        return generateToken(extraClaims, userDetails, accessTokenExpiration, jti);
+        return generateToken(extraClaims, userDetails, refreshTokenExpiration, jti);
     }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration, String jti) {
@@ -177,6 +177,9 @@ public class JwtService {
     }
 
     private SecretKey getSignInKey() {
+        if (jwtSecret == null || jwtSecret.isEmpty()) {
+            throw new IllegalArgumentException("JWT secret is not set");
+        }
         byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
         return Keys.hmacShaKeyFor(keyBytes);
     }

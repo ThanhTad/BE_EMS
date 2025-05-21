@@ -23,8 +23,10 @@ public class CustomUserDetails implements UserDetails {
     private final Role role;
     private final StatusCode status;
     private final Collection<? extends GrantedAuthority> authorities;
+    private final User user;
 
     public CustomUserDetails(User user) {
+        this.user = user;
         this.id = user.getId();
         this.username = user.getUsername();
         this.email = user.getEmail();
@@ -32,6 +34,10 @@ public class CustomUserDetails implements UserDetails {
         this.role = user.getRole();
         this.status = user.getStatus();
         this.authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+    }
+
+    public User getUser() {
+        return this.user;
     }
 
     @Override

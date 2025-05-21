@@ -19,6 +19,7 @@ import io.event.ems.dto.Disable2FARequest;
 import io.event.ems.dto.Enable2FARequest;
 import io.event.ems.dto.LoginRequestDTO;
 import io.event.ems.dto.RefreshTokenRequest;
+import io.event.ems.dto.RegisterRequestDTO;
 import io.event.ems.dto.RequestPasswordResetRequest;
 import io.event.ems.dto.ResendOtpRequest;
 import io.event.ems.dto.ResetPasswordRequest;
@@ -26,18 +27,26 @@ import io.event.ems.dto.SentOtpRequest;
 import io.event.ems.dto.TokenResponse;
 import io.event.ems.dto.VerifyOtpRequest;
 import io.event.ems.exception.AuthException;
+import io.event.ems.exception.DuplicateEmailException;
+import io.event.ems.exception.DuplicateUsernameException;
 import io.event.ems.exception.OtpException;
 import io.event.ems.exception.ResourceNotFoundException;
 import io.event.ems.exception.UnauthorizedException;
 import io.event.ems.mapper.UserMapper;
+import io.event.ems.model.Role;
+import io.event.ems.model.StatusCode;
 import io.event.ems.model.User;
+import io.event.ems.repository.StatusCodeRepository;
 import io.event.ems.repository.UserRepository;
+import io.event.ems.security.CustomUserDetails;
 import io.event.ems.security.jwt.JwtService;
 import io.event.ems.security.otp.OtpService;
 import io.event.ems.service.AuthService;
 import io.event.ems.service.EmailService;
+import io.event.ems.util.CookieUtil;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,6 +63,8 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final UserDetailsServiceImpl userDetailsService;
     private final UserMapper mapper;
+    private final StatusCodeRepository statusCodeRepository;
+    private final CookieUtil cookieUtil;
 
     private static final String OTP_TYPE_2FA = "2FA";
     private static final String OTP_TYPE_PWD_RESET = "PWD_RESET";
@@ -62,26 +73,31 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public TokenResponse login(LoginRequestDTO request) {
+    public TokenResponse login(LoginRequestDTO request, HttpServletResponse response) {
         log.info("Login attempt for username:{}", request.getUsername());
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+            User user = userDetails.getUser();
 
-            User user = findUserByUsername(userDetails.getUsername());
-
-            checkUserStatus(user, STATUS_ACTIVE, "Account is not active or looked");
+            checkUserStatus(user, STATUS_ACTIVE, "Account is not active or locked");
 
             if (user.getTwoFactorEnabled()) {
                 return handleTwoFactorRequired(user.getEmail(), user.getTwoFactorEnabled());
             }
 
             updateLastLogin(user);
+
+            String jwtToken = jwtService.generateAccessToken(userDetails);
+            String refreshToken = jwtService.generateRefreshToken(userDetails, user.getId());
+            cookieUtil.createAccessTokenCookie(response, jwtToken);
+            cookieUtil.createRefreshTokenCookie(response, refreshToken);
+
             log.info("User {} logged in successfully (2FA not required)", user.getUsername());
-            return createTokenResponse(userDetails, user);
+            return createTokenResponseWithoutAccessToken(userDetails, user);
         } catch (BadCredentialsException e) {
             log.warn("Login failed for username '{}': Invalid credentials", request.getUsername());
             throw new AuthException("Invalid username or password");
@@ -102,13 +118,47 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    private TokenResponse createTokenResponse(UserDetails userDetails, User user) {
-        String accessToken = jwtService.generateAccessToken(userDetails);
-        String refreshToken = jwtService.generateRefreshToken(userDetails, user.getId());
-        Long ExpirationMillis = jwtService.extractClaim(accessToken, claims -> claims.getExpiration().getTime());
+    @Override
+    @Transactional
+    public void register(RegisterRequestDTO request) {
+        log.info("Processing registration request for username: {}", request.getUsername());
+        if (userRepository.existsByUsername(request.getUsername())) {
+            log.warn("Registration failed: Username {} already exists", request.getUsername());
+            throw new DuplicateUsernameException("Username already exists");
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            log.warn("Registration failed: Email {} already exists", request.getEmail());
+            throw new DuplicateEmailException("Email already exists");
+        }
+        try {
+            User user = new User();
+            user.setUsername(request.getUsername());
+            user.setEmail(request.getEmail());
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            user.setFullName(request.getFullName());
+            user.setPhone(request.getPhone());
+            user.setCreatedAt(LocalDateTime.now());
+            user.setTwoFactorEnabled(false);
+            user.setRole(Role.USER);
+            StatusCode activeStatus = statusCodeRepository.findByEntityTypeAndStatus("USER", "ACTIVE")
+                    .orElseThrow(() -> new ResourceNotFoundException("Default status not found"));
+            user.setStatus(activeStatus);
+            userRepository.save(user);
+            log.info("User registered successfully: {}", user.getUsername());
+            emailService.sendWelcomeEmail(user.getEmail(), user.getUsername());
+        } catch (MailException e) {
+            log.error("Failed to send welcome email to {}: {}", request.getEmail(), e.getMessage());
+        } catch (Exception e) {
+            log.error("Registration failed for username {}: {}", request.getUsername(), e.getMessage(), e);
+            throw new AuthException("Registration failed due to an unexpected error");
+        }
+    }
 
+    private TokenResponse createTokenResponseWithoutAccessToken(UserDetails userDetails, User user) {
+        String refreshToken = jwtService.generateRefreshToken(userDetails, user.getId());
+        Long ExpirationMillis = jwtService.extractClaim(
+                jwtService.generateAccessToken(userDetails), claims -> claims.getExpiration().getTime());
         return TokenResponse.builder()
-                .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .accessTokenExpiresIn(ExpirationMillis)
                 .twoFactorEnabled(user.getTwoFactorEnabled())
@@ -158,7 +208,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public TokenResponse refreshToken(RefreshTokenRequest request) {
+    public TokenResponse refreshToken(RefreshTokenRequest request, HttpServletResponse response) {
         String refreshToken = request.getRefreshToken();
         log.debug("Attempting to refresh token");
         try {
@@ -176,10 +226,14 @@ public class AuthServiceImpl implements AuthService {
             User user = findUserByUsername(username);
 
             String newAccessToken = jwtService.generateAccessToken(userDetails);
+            // Rolling refresh token? Nếu có thì generate và set lại, nếu không thì chỉ set
+            // access token.
+            cookieUtil.createAccessTokenCookie(response, newAccessToken);
+            cookieUtil.createRefreshTokenCookie(response, refreshToken);
+
             log.info("Access token refreshed successfully for user {}", username);
 
             return TokenResponse.builder()
-                    .accessToken(newAccessToken)
                     .refreshToken(refreshToken)
                     .accessTokenExpiresIn(
                             jwtService.extractClaim(newAccessToken, claims -> claims.getExpiration().getTime()))
@@ -257,7 +311,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void logout(RefreshTokenRequest refreshToken) {
+    public void logout(RefreshTokenRequest refreshToken, HttpServletResponse response) {
         if (refreshToken == null || refreshToken.getRefreshToken().isEmpty()) {
             log.warn("Logout attempt with missing refresh token.");
             return;
@@ -273,6 +327,10 @@ public class AuthServiceImpl implements AuthService {
             log.warn("Could not blacklist refresh token during logout: JTI not found in token.");
         }
         SecurityContextHolder.clearContext();
+
+        // Xóa cả access token và refresh token cookie
+        cookieUtil.deleteAccessTokenCookie(response);
+        cookieUtil.deleteRefreshTokenCookie(response);
     }
 
     @Override
@@ -333,7 +391,8 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public TokenResponse verifyTwoFactorOtp(String authorizationHeader, VerifyOtpRequest request) {
+    public TokenResponse verifyTwoFactorOtp(String authorizationHeader, VerifyOtpRequest request,
+            HttpServletResponse response) {
         String accessToken = jwtService.extractValidatedToken(authorizationHeader);
 
         String usernameFromToken = jwtService.extractUsername(accessToken);
@@ -358,7 +417,13 @@ public class AuthServiceImpl implements AuthService {
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         log.info("2FA verification successful for user {}. Tokens generated.", user.getUsername());
 
-        return createTokenResponse(userDetails, user);
+        // Set accessToken và refreshToken vào cookie khi 2FA thành công
+        String newAccessToken = jwtService.generateAccessToken(userDetails);
+        String newRefreshToken = jwtService.generateRefreshToken(userDetails, user.getId());
+        cookieUtil.createAccessTokenCookie(response, newAccessToken);
+        cookieUtil.createRefreshTokenCookie(response, newRefreshToken);
+
+        return createTokenResponseWithoutAccessToken(userDetails, user);
     }
 
     @Override

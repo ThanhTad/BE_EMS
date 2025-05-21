@@ -88,4 +88,29 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Async
+    @Override
+    public void sendWelcomeEmail(String to, String username) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            Context context = new Context();
+            context.setVariable("username", username);
+
+            String htmlContent = templateEngine.process("welcome-email", context);
+
+            helper.setTo(to);
+            helper.setSubject("Welcome to EMS!");
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("Welcome email sent successfully to: {}", to);
+
+        } catch (MessagingException e) {
+            log.error("Failed to send welcome email to {}: {}", to, e.getMessage());
+            throw new RuntimeException("Failed to send welcome email", e);
+        }
+    }
+
 }
