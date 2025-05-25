@@ -3,6 +3,7 @@ package io.event.ems.controller;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.event.ems.dto.*;
+import io.event.ems.exception.AuthException;
 import io.event.ems.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,7 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("api/auth/v1")
+@RequestMapping("api/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "APIs for user authentication, registration, 2FA, and password management")
 public class AuthController {
@@ -36,9 +37,9 @@ public class AuthController {
     @PostMapping("/rf-token")
     @Operation(summary = "Refresh the access token using a valid refresh token")
     public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(
-            @Valid @RequestBody RefreshTokenRequest request,
+            @CookieValue(value = "refreshToken", required = false) String refreshToken,
             HttpServletResponse response) {
-        TokenResponse tokenResponse = authService.refreshToken(request, response);
+        TokenResponse tokenResponse = authService.refreshToken(refreshToken, response);
         return ResponseEntity.ok(ApiResponse.success(tokenResponse));
     }
 
@@ -61,9 +62,9 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "Logout the user by invalidating the refresh token")
     public ResponseEntity<ApiResponse<Void>> logout(
-            @Valid @RequestBody RefreshTokenRequest request,
+            @CookieValue(value = "refreshToken", required = false) String refreshToken,
             HttpServletResponse response) {
-        authService.logout(request, response);
+        authService.logout(refreshToken, response);
         return ResponseEntity.noContent().build();
     }
 
@@ -103,6 +104,16 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
         authService.resendOtp(request);
         return ResponseEntity.accepted().body(ApiResponse.accepted("If your request is valid, a new OTP will be sent"));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<TokenResponse>> getMe(
+            @CookieValue(value = "accessToken", required = false) String accessToken) {
+        if (accessToken == null) {
+            throw new AuthException("Access token is missing in cookie");
+        }
+        TokenResponse userInfo = authService.getUserInfo(accessToken);
+        return ResponseEntity.ok(ApiResponse.success(userInfo));
     }
 
 }

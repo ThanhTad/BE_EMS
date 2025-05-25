@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import io.event.ems.dto.Disable2FARequest;
 import io.event.ems.dto.Enable2FARequest;
 import io.event.ems.dto.LoginRequestDTO;
-import io.event.ems.dto.RefreshTokenRequest;
 import io.event.ems.dto.RegisterRequestDTO;
 import io.event.ems.dto.RequestPasswordResetRequest;
 import io.event.ems.dto.ResendOtpRequest;
@@ -36,6 +35,7 @@ import io.event.ems.mapper.UserMapper;
 import io.event.ems.model.Role;
 import io.event.ems.model.StatusCode;
 import io.event.ems.model.User;
+import io.event.ems.model.UserSettings;
 import io.event.ems.repository.StatusCodeRepository;
 import io.event.ems.repository.UserRepository;
 import io.event.ems.security.CustomUserDetails;
@@ -97,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
             cookieUtil.createRefreshTokenCookie(response, refreshToken);
 
             log.info("User {} logged in successfully (2FA not required)", user.getUsername());
-            return createTokenResponseWithoutAccessToken(userDetails, user);
+            return createTokenResponse(jwtToken, user);
         } catch (BadCredentialsException e) {
             log.warn("Login failed for username '{}': Invalid credentials", request.getUsername());
             throw new AuthException("Invalid username or password");
@@ -143,6 +143,10 @@ public class AuthServiceImpl implements AuthService {
             StatusCode activeStatus = statusCodeRepository.findByEntityTypeAndStatus("USER", "ACTIVE")
                     .orElseThrow(() -> new ResourceNotFoundException("Default status not found"));
             user.setStatus(activeStatus);
+
+            UserSettings userSettings = new UserSettings(user);
+            user.setSettings(userSettings);
+
             userRepository.save(user);
             log.info("User registered successfully: {}", user.getUsername());
             emailService.sendWelcomeEmail(user.getEmail(), user.getUsername());
@@ -154,13 +158,13 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    private TokenResponse createTokenResponseWithoutAccessToken(UserDetails userDetails, User user) {
-        String refreshToken = jwtService.generateRefreshToken(userDetails, user.getId());
-        Long ExpirationMillis = jwtService.extractClaim(
-                jwtService.generateAccessToken(userDetails), claims -> claims.getExpiration().getTime());
+    private TokenResponse createTokenResponse(
+            String accessToken,
+            User user) {
+        Long expirationMillis = jwtService.extractClaim(accessToken, claims -> claims.getExpiration().getTime());
+
         return TokenResponse.builder()
-                .refreshToken(refreshToken)
-                .accessTokenExpiresIn(ExpirationMillis)
+                .accessTokenExpiresIn(expirationMillis)
                 .twoFactorEnabled(user.getTwoFactorEnabled())
                 .user(mapper.toResponseDTO(user))
                 .build();
@@ -208,8 +212,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public TokenResponse refreshToken(RefreshTokenRequest request, HttpServletResponse response) {
-        String refreshToken = request.getRefreshToken();
+    public TokenResponse refreshToken(String refreshToken, HttpServletResponse response) {
         log.debug("Attempting to refresh token");
         try {
             String username = jwtService.extractUsername(refreshToken);
@@ -234,7 +237,6 @@ public class AuthServiceImpl implements AuthService {
             log.info("Access token refreshed successfully for user {}", username);
 
             return TokenResponse.builder()
-                    .refreshToken(refreshToken)
                     .accessTokenExpiresIn(
                             jwtService.extractClaim(newAccessToken, claims -> claims.getExpiration().getTime()))
                     .twoFactorEnabled(user.getTwoFactorEnabled())
@@ -311,14 +313,14 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void logout(RefreshTokenRequest refreshToken, HttpServletResponse response) {
-        if (refreshToken == null || refreshToken.getRefreshToken().isEmpty()) {
+    public void logout(String refreshToken, HttpServletResponse response) {
+        if (refreshToken == null || refreshToken.isEmpty()) {
             log.warn("Logout attempt with missing refresh token.");
             return;
         }
         log.debug("Logout attempt");
 
-        String jti = jwtService.extractJti(refreshToken.getRefreshToken());
+        String jti = jwtService.extractJti(refreshToken);
         if (jti != null) {
             jwtService.blacklistRefreshToken(jti);
             log.info("User logged out. Refresh token blacklisted (JTI ending with: ...{})",
@@ -423,7 +425,7 @@ public class AuthServiceImpl implements AuthService {
         cookieUtil.createAccessTokenCookie(response, newAccessToken);
         cookieUtil.createRefreshTokenCookie(response, newRefreshToken);
 
-        return createTokenResponseWithoutAccessToken(userDetails, user);
+        return createTokenResponse(newAccessToken, user);
     }
 
     @Override
@@ -472,6 +474,24 @@ public class AuthServiceImpl implements AuthService {
                     e);
         }
 
+    }
+
+    @Override
+    public TokenResponse getUserInfo(String accessToken) {
+        String username = jwtService.extractUsername(accessToken);
+        if (username == null) {
+            throw new AuthException("Invalid or missing access token");
+        }
+
+        User user = findUserByUsername(username);
+
+        Long expirationMillis = jwtService.extractClaim(accessToken, claims -> claims.getExpiration().getTime());
+
+        return TokenResponse.builder()
+                .accessTokenExpiresIn(expirationMillis)
+                .twoFactorEnabled(user.getTwoFactorEnabled())
+                .user(mapper.toResponseDTO(user))
+                .build();
     }
 
 }

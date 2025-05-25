@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Sort;
 
+import io.event.ems.dto.ApiResponse;
 import io.event.ems.dto.UserRequestDTO;
 import io.event.ems.dto.UserResponseDTO;
 import io.event.ems.service.UserService;
@@ -37,16 +38,17 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping
-    public ResponseEntity<UserResponseDTO> createUser(@Valid @RequestBody UserRequestDTO userRequestDTO) {
+    public ResponseEntity<ApiResponse<UserResponseDTO>> createUser(@Valid @RequestBody UserRequestDTO userRequestDTO) {
         UserResponseDTO userResponseDTO = userService.createUser(userRequestDTO);
-        return new ResponseEntity<UserResponseDTO>(userResponseDTO, HttpStatus.CREATED);
+        return ResponseEntity.ok(ApiResponse.success("User created successfully", userResponseDTO));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<UserResponseDTO>> getUserById(@PathVariable UUID id) {
         Optional<UserResponseDTO> userDTO = userService.getUserById(id);
-        return userDTO.map(dto -> new ResponseEntity<>(dto, HttpStatus.OK))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+        return ResponseEntity.ok(
+                userDTO.map(dto -> ApiResponse.success("User found", dto))
+                        .orElse(ApiResponse.error(HttpStatus.NOT_FOUND, "User not found")));
     }
 
     @GetMapping
@@ -63,66 +65,76 @@ public class UserController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<Page<UserResponseDTO>> searchUsers(@RequestParam("keyword") String keyword,
+    public ResponseEntity<ApiResponse<Page<UserResponseDTO>>> searchUsers(@RequestParam("keyword") String keyword,
             @PageableDefault(size = 10, sort = "username", direction = Sort.Direction.ASC) Pageable pageable) {
         Page<UserResponseDTO> users = userService.searchUsers(keyword, pageable);
-        return new ResponseEntity<>(users, HttpStatus.OK);
+        return ResponseEntity.ok(
+                ApiResponse.success("Users found", users));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable UUID id,
+    public ResponseEntity<ApiResponse<UserResponseDTO>> updateUser(@PathVariable UUID id,
             @Valid @RequestBody UserRequestDTO userRequestDTO) {
         UserResponseDTO user = userService.updateUser(id, userRequestDTO);
-        return new ResponseEntity<>(user, HttpStatus.OK);
+        return ResponseEntity.ok(
+                ApiResponse.success("User updated successfully", user));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID id) {
         userService.delete(id);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return ResponseEntity.ok(
+                ApiResponse.success("User deleted successfully", null));
     }
 
     @PostMapping("/{id}/changepass")
-    public ResponseEntity<Void> changePassword(
+    public ResponseEntity<ApiResponse<Void>> changePassword(
             @PathVariable UUID id,
             @RequestParam("newPassword") String newPass,
             @RequestParam("currentPassword") String currentPass) {
         userService.changePassword(id, newPass, currentPass);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return ResponseEntity.ok(
+                ApiResponse.success("Password changed successfully", null));
     }
 
     @PostMapping("/{id}/resetpass")
-    public ResponseEntity<Void> resetPassword(@PathVariable UUID id, @RequestParam("newPassword") String newPass) {
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@PathVariable UUID id,
+            @RequestParam("newPassword") String newPass) {
         userService.resetPassword(id, newPass);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return ResponseEntity.ok(
+                ApiResponse.success("Password reset successfully", null));
     }
 
     @PutMapping("/{id}/enable")
-    public ResponseEntity<Void> enableUser(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> enableUser(@PathVariable UUID id) {
         userService.enableUser(id);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return ResponseEntity.ok(
+                ApiResponse.success("User enabled successfully", null));
     }
 
     @PutMapping("/{id}/disable")
-    public ResponseEntity<Void> disableUser(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> disableUser(@PathVariable UUID id) {
         userService.disableUser(id);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return ResponseEntity.ok(
+                ApiResponse.success("User disabled successfully", null));
     }
 
     @GetMapping("/by-username-or-email")
-    public ResponseEntity<UserResponseDTO> findByUsernameOrEmail(
+    public ResponseEntity<ApiResponse<UserResponseDTO>> findByUsernameOrEmail(
             @RequestParam("usernameOrEmail") String usernameOrEmail) {
         Optional<UserResponseDTO> users = userService.findByUsernameOrEmail(usernameOrEmail);
-        return users.map(dto -> new ResponseEntity<>(dto, HttpStatus.OK))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+        return ResponseEntity.ok(
+                users.map(dto -> ApiResponse.success("User found", dto))
+                        .orElse(ApiResponse.error(HttpStatus.NOT_FOUND, "User not found")));
     }
 
     @PostMapping("/{id}/avatar")
     @Operation(summary = "Upload and update avatar")
-    public ResponseEntity<Map<String, String>> uploadAvatar(@PathVariable UUID id,
+    public ResponseEntity<ApiResponse<Map<String, String>>> uploadAvatar(@PathVariable UUID id,
             @RequestPart("file") MultipartFile file) {
         String url = userService.storeAvatar(id, file);
-        return ResponseEntity.ok(Map.of("url", url));
+        return ResponseEntity.ok(
+                ApiResponse.success("Avatar uploaded successfully", Map.of("url", url)));
     }
 
 }

@@ -3,7 +3,6 @@ package io.event.ems.service;
 import io.event.ems.dto.Disable2FARequest;
 import io.event.ems.dto.Enable2FARequest;
 import io.event.ems.dto.LoginRequestDTO;
-import io.event.ems.dto.RefreshTokenRequest;
 import io.event.ems.dto.RegisterRequestDTO;
 import io.event.ems.dto.RequestPasswordResetRequest;
 import io.event.ems.dto.ResendOtpRequest;
@@ -17,13 +16,13 @@ public interface AuthService {
 
     TokenResponse login(LoginRequestDTO request, HttpServletResponse response);
 
-    TokenResponse refreshToken(RefreshTokenRequest request, HttpServletResponse response);
+    TokenResponse refreshToken(String request, HttpServletResponse response);
 
     void requestPasswordReset(RequestPasswordResetRequest request);
 
     void resetPassword(ResetPasswordRequest request);
 
-    void logout(RefreshTokenRequest refreshToken, HttpServletResponse response);
+    void logout(String refreshToken, HttpServletResponse response);
 
     void enableTwoFactorAuth(Enable2FARequest request);
 
@@ -37,5 +36,7 @@ public interface AuthService {
     void resendOtp(ResendOtpRequest request);
 
     void register(RegisterRequestDTO request);
+
+    TokenResponse getUserInfo(String accessToken);
 
 }

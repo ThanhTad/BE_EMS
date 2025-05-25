@@ -21,6 +21,7 @@ import io.event.ems.mapper.UserMapper;
 import io.event.ems.model.Role;
 import io.event.ems.model.StatusCode;
 import io.event.ems.model.User;
+import io.event.ems.model.UserSettings;
 import io.event.ems.repository.StatusCodeRepository;
 import io.event.ems.repository.UserRepository;
 import io.event.ems.service.FileStorageService;
@@ -58,6 +59,8 @@ public class UserServiceImpl implements UserService {
 
         user.setStatus(userStatus);
         user.setRole(Role.USER);
+        UserSettings userSettings = new UserSettings(user);
+        user.setSettings(userSettings);
         return userMapper.toResponseDTO(userRepository.save(user));
 
     }

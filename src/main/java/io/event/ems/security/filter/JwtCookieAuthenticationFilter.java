@@ -49,7 +49,8 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
             String jwt = extractTokenFromCookie(request, ACCESS_TOKEN_COOKIE_NAME);
 
             // If no token found in cookie, continue with filter chain
-            if (jwt == null) {
+            if (jwt == null || jwt.isBlank()) {
+                log.warn("JWT token missing or empty");
                 filterChain.doFilter(request, response);
                 return;
             }

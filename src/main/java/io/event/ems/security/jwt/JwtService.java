@@ -61,7 +61,18 @@ public class JwtService {
     }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration, String jti) {
-        return null;
+        JwtBuilder builder = Jwts.builder()
+                .claims(extraClaims)
+                .subject(userDetails.getUsername())
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSignInKey());
+
+        if (jti != null) {
+            builder.id(jti);
+        }
+
+        return builder.compact();
     }
 
     public String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration, String jti) {
