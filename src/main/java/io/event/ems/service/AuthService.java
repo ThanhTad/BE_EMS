@@ -39,4 +39,6 @@ public interface AuthService {
 
     TokenResponse getUserInfo(String accessToken);
 
+    void verifyEmailOtp(String email, String otp);
+
 }

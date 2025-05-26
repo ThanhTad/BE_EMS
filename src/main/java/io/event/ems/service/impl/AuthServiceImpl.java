@@ -68,8 +68,10 @@ public class AuthServiceImpl implements AuthService {
 
     private static final String OTP_TYPE_2FA = "2FA";
     private static final String OTP_TYPE_PWD_RESET = "PWD_RESET";
+    private static final String OTP_TYPE_EMAIL_VERIFY = "EMAIL_VERIFY";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_LOCKED = "LOCKED";
+    private static final String STATUS_UNVERIFIED = "UNVERIFIED";
 
     @Override
     @Transactional
@@ -83,6 +85,11 @@ public class AuthServiceImpl implements AuthService {
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             User user = userDetails.getUser();
 
+            if (user.getStatus() == null || STATUS_UNVERIFIED.equalsIgnoreCase(user.getStatus().getStatus())) {
+                log.warn("Login failed for username '{}': Account is not verified", request.getUsername());
+                throw new AuthException("Account is not verified. Please check your email.");
+            }
+            // Kiểm tra trạng thái người dùng
             checkUserStatus(user, STATUS_ACTIVE, "Account is not active or locked");
 
             if (user.getTwoFactorEnabled()) {
@@ -140,16 +147,18 @@ public class AuthServiceImpl implements AuthService {
             user.setCreatedAt(LocalDateTime.now());
             user.setTwoFactorEnabled(false);
             user.setRole(Role.USER);
-            StatusCode activeStatus = statusCodeRepository.findByEntityTypeAndStatus("USER", "ACTIVE")
+
+            StatusCode unverifiedStatus = statusCodeRepository.findByEntityTypeAndStatus("USER", STATUS_UNVERIFIED)
                     .orElseThrow(() -> new ResourceNotFoundException("Default status not found"));
-            user.setStatus(activeStatus);
+            user.setStatus(unverifiedStatus);
 
             UserSettings userSettings = new UserSettings(user);
             user.setSettings(userSettings);
-
             userRepository.save(user);
+
+            String otp = otpService.generateAndStoreOtp(user.getEmail(), OTP_TYPE_EMAIL_VERIFY);
             log.info("User registered successfully: {}", user.getUsername());
-            emailService.sendWelcomeEmail(user.getEmail(), user.getUsername());
+            emailService.sendOtpEmail(user.getEmail(), "Verify your EMS account", otp);
         } catch (MailException e) {
             log.error("Failed to send welcome email to {}: {}", request.getEmail(), e.getMessage());
         } catch (Exception e) {
@@ -458,6 +467,10 @@ public class AuthServiceImpl implements AuthService {
                     subject = "Your New EMS Password Reset Code";
                     break;
 
+                case OTP_TYPE_EMAIL_VERIFY:
+                    subject = "Your EMS Account Verification Code";
+                    break;
+
                 default:
                     log.error("Invalid OTP type '{}' encountered during resend", request.otpType());
                     return;
@@ -492,6 +505,22 @@ public class AuthServiceImpl implements AuthService {
                 .twoFactorEnabled(user.getTwoFactorEnabled())
                 .user(mapper.toResponseDTO(user))
                 .build();
+    }
+
+    @Override
+    public void verifyEmailOtp(String email, String otp) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+        log.info("Verifying email OTP for user: {}", user.getUsername());
+        if (user.getStatus() != null && STATUS_ACTIVE.equalsIgnoreCase(user.getStatus().getStatus())) {
+            throw new AuthException("Email alrady verified");
+        }
+        validateOtp(email, OTP_TYPE_EMAIL_VERIFY, otp);
+        StatusCode activeStatus = statusCodeRepository.findByEntityTypeAndStatus("USER", "ACTIVE")
+                .orElseThrow(() -> new ResourceNotFoundException("Default status not found"));
+        user.setStatus(activeStatus);
+        userRepository.save(user);
+        log.info("Email OTP verified successfully for user: {}", user.getUsername());
     }
 
 }

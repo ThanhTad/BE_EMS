@@ -116,4 +116,12 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(userInfo));
     }
 
+    @PostMapping("/email/verify")
+    @Operation(summary = "Verify email using OTP after registration")
+    public ResponseEntity<ApiResponse<Void>> verifyEmailOtp(
+            @RequestBody VerifyOtpRequest verifyOtpRequest) {
+        authService.verifyEmailOtp(verifyOtpRequest.getIdentifier(), verifyOtpRequest.getOtp());
+        return ResponseEntity.ok(ApiResponse.success("Email has been verified successfully", null));
+    }
+
 }
