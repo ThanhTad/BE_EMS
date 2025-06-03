@@ -6,4 +6,6 @@ public interface FileStorageService {
 
     String storeFile(MultipartFile file, String directory);
 
+    String deleteFile(String oldAvatarUrl);
+
 }

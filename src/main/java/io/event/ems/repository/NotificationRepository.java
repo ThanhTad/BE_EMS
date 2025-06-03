@@ -10,8 +10,8 @@ import io.event.ems.model.Notification;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    long countByUserIdAndSeenFalse(UUID userId);
+    long countByUserIdAndReadFalse(UUID userId);
 
-    Page<Notification> findByUserIdAndSeenFalseOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+    Page<Notification> findByUserIdAndReadFalseOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
 }

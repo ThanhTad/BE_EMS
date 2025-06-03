@@ -28,12 +28,12 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Cacheable(value = "notifCount", key = "#userId")
     public long countUnread(UUID userId) {
-        return repository.countByUserIdAndSeenFalse(userId);
+        return repository.countByUserIdAndReadFalse(userId);
     }
 
     @Override
     public Page<NotificationDTO> getUnread(UUID userId, Pageable pageable) {
-        return repository.findByUserIdAndSeenFalseOrderByCreatedAtDesc(userId, pageable)
+        return repository.findByUserIdAndReadFalseOrderByCreatedAtDesc(userId, pageable)
                 .map(mapper::toDTO);
     }
 
@@ -42,8 +42,8 @@ public class NotificationServiceImpl implements NotificationService {
     @CacheEvict(value = "notifCount", key = "#userId")
     public void markAsRead(UUID userId, List<Long> ids) {
         repository.findAllById(ids).stream()
-                .filter(n -> n.getUserId().equals(userId) && !n.isSeen())
-                .forEach(n -> n.setSeen(true));
+                .filter(n -> n.getUserId().equals(userId) && !n.isRead())
+                .forEach(n -> n.setRead(true));
     }
 
     @Override

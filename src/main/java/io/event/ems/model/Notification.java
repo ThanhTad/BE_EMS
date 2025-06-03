@@ -45,7 +45,7 @@ public class Notification {
     private String url;
 
     @Column(nullable = false)
-    private boolean seen = false;
+    private boolean read = false;
 
     @Column(name = "created_at", nullable = false)
     @CreationTimestamp
