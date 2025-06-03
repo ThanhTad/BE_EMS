@@ -1,5 +1,6 @@
 package io.event.ems.service.impl;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,6 +15,8 @@ import io.event.ems.dto.UserRequestDTO;
 import io.event.ems.dto.UserResponseDTO;
 import io.event.ems.exception.DuplicateEmailException;
 import io.event.ems.exception.DuplicateUsernameException;
+import io.event.ems.exception.FileStorageException;
+import io.event.ems.exception.FileValidationException;
 import io.event.ems.exception.InvalidPasswordException;
 import io.event.ems.exception.StatusNotFoundException;
 import io.event.ems.exception.UserNotFoundException;
@@ -38,6 +41,8 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final StatusCodeRepository statusCodeRepository;
     private final FileStorageService fileStorageService;
+    private static final long MAX_FILE_SIZE = 5_000_000; // 5MB
+    private static final String[] ALLOWED_IMAGE_TYPES = { "image/jpeg", "image/png", "image/gif" };
 
     @Override
     public UserResponseDTO createUser(UserRequestDTO userRequestDTO) {
@@ -213,12 +218,57 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public String storeAvatar(UUID userId, MultipartFile file) {
-        String url = fileStorageService.storeFile(file, "avatars/" + userId);
+        // Validate file
+        validateAvatarFile(file);
+
+        // Kiểm tra user tồn tại
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
-        user.setAvatarUrl(url);
-        userRepository.save(user);
-        return url;
+
+        try {
+            // Xóa avatar cũ nếu có
+            String oldAvatarUrl = user.getAvatarUrl();
+            if (oldAvatarUrl != null && !oldAvatarUrl.isEmpty()) {
+                fileStorageService.deleteFile(oldAvatarUrl);
+            }
+
+            // Lưu file mới
+            String url = fileStorageService.storeFile(file, "avatars/" + userId);
+            user.setAvatarUrl(url);
+            userRepository.save(user);
+            return url;
+
+        } catch (Exception e) {
+            throw new FileStorageException("Không thể lưu avatar: " + e.getMessage());
+        }
+    }
+
+    private void validateAvatarFile(MultipartFile file) {
+        // Kiểm tra file rỗng
+        if (file == null || file.isEmpty()) {
+            throw new FileValidationException("File avatar không được để trống");
+        }
+
+        // Kiểm tra kích thước
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new FileValidationException("Kích thước file không được vượt quá 5MB");
+        }
+
+        // Kiểm tra định dạng
+        String contentType = file.getContentType();
+        if (contentType == null || !isValidImageType(contentType)) {
+            throw new FileValidationException("File phải là định dạng ảnh (JPEG, PNG, GIF)");
+        }
+
+        // Kiểm tra tên file
+        String filename = file.getOriginalFilename();
+        if (filename == null || filename.contains("..")) {
+            throw new FileValidationException("Tên file không hợp lệ");
+        }
+    }
+
+    private boolean isValidImageType(String contentType) {
+        return Arrays.asList(ALLOWED_IMAGE_TYPES).contains(contentType.toLowerCase());
     }
 
     @Override

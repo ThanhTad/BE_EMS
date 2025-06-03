@@ -183,8 +183,15 @@ public class OtpService {
     }
 
     private void handleSuccessfulValidation(String identifier, String otpType, String valueKey, String attemptKey) {
+        String baseKey = otpType + ":" + identifier;
+        String resendDelayKey = OTP_RESEND_DELAY_PREFIX + baseKey;
+        long currentHour = Instant.now().getEpochSecond() / ONE_HOUR_IN_SECONDS;
+        String hourlyCountKey = OTP_RESEND_HOURLY_COUNT_PREFIX + baseKey + ":" + currentHour;
+
         redisService.deleteValue(valueKey);
         redisService.deleteValue(attemptKey);
+        redisService.deleteValue(resendDelayKey);
+        redisService.deleteValue(hourlyCountKey);
         log.info("Successful OTP validation for {}:{} cleaned up keys", otpType, identifier);
     }
 

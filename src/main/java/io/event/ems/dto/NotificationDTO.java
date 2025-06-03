@@ -17,6 +17,6 @@ public class NotificationDTO {
     private String title;
     private String message;
     private String url;
-    private Boolean seen;
+    private Boolean read;
     private LocalDateTime createdAt;
 }

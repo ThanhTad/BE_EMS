@@ -1,6 +1,9 @@
 package io.event.ems.service.impl;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.UUID;
 
 import org.springframework.mail.MailException;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,16 +24,15 @@ import io.event.ems.dto.LoginRequestDTO;
 import io.event.ems.dto.RegisterRequestDTO;
 import io.event.ems.dto.RequestPasswordResetRequest;
 import io.event.ems.dto.ResendOtpRequest;
-import io.event.ems.dto.ResetPasswordRequest;
+import io.event.ems.dto.ResetPasswordVerificationResponse;
 import io.event.ems.dto.SentOtpRequest;
 import io.event.ems.dto.TokenResponse;
-import io.event.ems.dto.VerifyOtpRequest;
+import io.event.ems.dto.TwoFactorVerificationRequest;
 import io.event.ems.exception.AuthException;
 import io.event.ems.exception.DuplicateEmailException;
 import io.event.ems.exception.DuplicateUsernameException;
 import io.event.ems.exception.OtpException;
 import io.event.ems.exception.ResourceNotFoundException;
-import io.event.ems.exception.UnauthorizedException;
 import io.event.ems.mapper.UserMapper;
 import io.event.ems.model.Role;
 import io.event.ems.model.StatusCode;
@@ -40,7 +42,9 @@ import io.event.ems.repository.StatusCodeRepository;
 import io.event.ems.repository.UserRepository;
 import io.event.ems.security.CustomUserDetails;
 import io.event.ems.security.jwt.JwtService;
+import io.event.ems.security.otp.ChallengeTokenService;
 import io.event.ems.security.otp.OtpService;
+import io.event.ems.security.otp.ResetTokenService;
 import io.event.ems.service.AuthService;
 import io.event.ems.service.EmailService;
 import io.event.ems.util.CookieUtil;
@@ -65,10 +69,14 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper mapper;
     private final StatusCodeRepository statusCodeRepository;
     private final CookieUtil cookieUtil;
+    private final ResetTokenService resetTokenService;
+    private final ChallengeTokenService challengeTokenService;
 
-    private static final String OTP_TYPE_2FA = "2FA";
-    private static final String OTP_TYPE_PWD_RESET = "PWD_RESET";
+    private static final String OTP_TYPE_2FA_LOGIN = "2FA_LOGIN";
+    private static final String OTP_TYPE_2FA_ENABLE = "2FA_ENABLE";
+    private static final String OTP_TYPE_2FA_DISABLE = "2FA_DISABLE";
     private static final String OTP_TYPE_EMAIL_VERIFY = "EMAIL_VERIFY";
+    private static final String OTP_TYPE_PWD_RESET = "PWD_RESET";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_LOCKED = "LOCKED";
     private static final String STATUS_UNVERIFIED = "UNVERIFIED";
@@ -93,7 +101,7 @@ public class AuthServiceImpl implements AuthService {
             checkUserStatus(user, STATUS_ACTIVE, "Account is not active or locked");
 
             if (user.getTwoFactorEnabled()) {
-                return handleTwoFactorRequired(user.getEmail(), user.getTwoFactorEnabled());
+                return handleTwoFactorRequired(user.getEmail(), user.getTwoFactorEnabled(), OTP_TYPE_2FA_LOGIN);
             }
 
             updateLastLogin(user);
@@ -179,20 +187,26 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    @Transactional
     private void updateLastLogin(User user) {
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
         log.debug("Updated last login for user: {}", user.getUsername());
     }
 
-    private TokenResponse handleTwoFactorRequired(String userEmail, boolean isTwoFactorEnabled) {
+    private TokenResponse handleTwoFactorRequired(String userEmail, boolean isTwoFactorEnabled, String otpType) {
         if (isTwoFactorEnabled) {
             log.info("2FA required for user associated with {}. Sending OTP.", userEmail);
             try {
-                String otp = otpService.generateAndStoreOtp(userEmail, OTP_TYPE_2FA);
-                emailService.sendOtpEmail(userEmail, "Your EMS 2FA Code", otp);
+                String challengeToken = challengeTokenService.generateChallengerToken(userEmail);
+
+                String otp = otpService.generateAndStoreOtp(userEmail, otpType);
+                String subject = getOtpEmailSubject(otpType);
+                emailService.sendOtpEmail(userEmail, subject, otp);
+
                 return TokenResponse.builder()
                         .twoFactorEnabled(true)
+                        .challengeToken(challengeToken)
                         .build();
             } catch (OtpException | MailException e) {
                 log.error("Failed to generate or send 2FA OTP for {}: {}", userEmail, e.getMessage());
@@ -203,13 +217,24 @@ public class AuthServiceImpl implements AuthService {
         throw new AuthException("Internal server error during login.");
     }
 
+    private String getOtpEmailSubject(String otpType) {
+        return switch (otpType) {
+            case OTP_TYPE_2FA_LOGIN -> "Your EMS 2FA Login Code";
+            case OTP_TYPE_2FA_ENABLE -> "Your EMS 2FA Code";
+            case OTP_TYPE_2FA_DISABLE -> "Your EMS 2FA Disable Code";
+            case OTP_TYPE_PWD_RESET -> "Your EMS Password Reset Code";
+            case OTP_TYPE_EMAIL_VERIFY -> "Your EMS Account Verification Code";
+            default -> "Your EMS Verification Code";
+        };
+    }
+
     private void checkUserStatus(User user, String expectedStatus, String errorMessage) {
         if (user.getStatus() == null || !expectedStatus.equalsIgnoreCase(user.getStatus().getStatus())) {
             log.warn("User status check failed for {}. Expected: {}, Actual: {}",
                     user.getUsername(), expectedStatus,
                     user.getStatus() != null ? user.getStatus().getStatus() : "null");
             if (user.getStatus() != null && STATUS_LOCKED.equalsIgnoreCase(user.getStatus().getStatus())) {
-                throw new AuthException("Account is looked.");
+                throw new AuthException("Account is locked.");
             }
             throw new AuthException(errorMessage);
         }
@@ -265,27 +290,25 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public void requestPasswordReset(RequestPasswordResetRequest request) {
         String email = request.getEmail();
-        log.info("Password reset requested for email: {}", email);
-        userRepository.findByEmail(email).ifPresent(user -> {
-            if (isUserStatusActive(user)) {
-                try {
-                    String otp = otpService.generateAndStoreOtp(user.getEmail(), OTP_TYPE_PWD_RESET);
-                    emailService.sendOtpEmail(user.getEmail(), "Your EMS Password Reset Code", otp);
-                    log.info("Password reset OTP sent to user {}", user.getUsername());
-                } catch (OtpException | MailException e) {
-                    log.error("Failed to send password reset OTP for {}: {}", user.getEmail(), e.getMessage());
-                } catch (Exception e) {
-                    log.error("Unexpected error during password reset OTP generation/sending for {}: {}",
-                            user.getEmail(), e.getMessage(), e);
-                }
-            } else {
-                log.warn("Password reset requested for inactive/locked user associated with email: {}", email);
-            }
-        });
+        log.info("Password reset request for email: {}", email);
 
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!isUserStatusActive(user)) {
+            throw new AuthException("Cannot reset password for inactive account");
+        }
+
+        try {
+            String otp = otpService.generateAndStoreOtp(email, OTP_TYPE_PWD_RESET);
+            emailService.sendOtpEmail(email, "Your EMS Password Reset Code", otp);
+            log.info("Password reset OTP sent successfully to email: {}", email);
+        } catch (Exception e) {
+            log.error("Failed to send password reset OTP: {}", e.getMessage());
+            throw new AuthException("Failed to send reset code. Please try again.");
+        }
     }
 
     private boolean isUserStatusActive(User user) {
@@ -293,29 +316,37 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void resetPassword(ResetPasswordRequest request) {
-        String email = request.getEmail();
+    @Transactional
+    public void resetPasswordWithToken(String email, String resetToken, String newPassword) {
         log.info("Attempting to reset password for email: {}", email);
-        validateOtp(email, OTP_TYPE_PWD_RESET, request.getOtp());
 
-        User user = findUserByUsername(email);
+        if (!resetTokenService.validateResetToken(email, resetToken)) {
+            log.warn("Invalid reset token provided for email: {}", email);
+            throw new AuthException("Invalid or expired reset token.");
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
         checkUserStatus(user, STATUS_ACTIVE, "Cannot reset password for inactive account");
 
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+
+        resetTokenService.invalidateResetToken(email);
+
         log.info("Password reset successfully for user {}", user.getUsername());
     }
 
-    private void validateOtp(String identifier, String otpType, String otp) {
+    private void validateOtp(String email, String otpType, String otp) {
         try {
-            boolean isValid = otpService.validateOtp(identifier, otpType, otp);
+            boolean isValid = otpService.validateOtp(email, otpType, otp);
             if (!isValid) {
                 throw new OtpException("Invalid OTP provided.");
             }
-            log.debug("OTP validation successful for identifier: {}, type: {}", identifier, otpType);
+            log.debug("OTP validation successful for email: {}, type: {}", email, otpType);
         } catch (OtpException e) {
-            log.warn("OTP validation failed for identifier: {}, type: {}. Reason: {}", identifier, otpType,
+            log.warn("OTP validation failed for email: {}, type: {}. Reason: {}", email, otpType,
                     e.getMessage());
             throw e;
         }
@@ -348,6 +379,8 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void enableTwoFactorAuth(Enable2FARequest request) {
         String username = request.username();
+        String otp = request.otp();
+
         log.info("Enabling 2FA for user: {}", username);
         User user = findUserByUsername(username);
 
@@ -357,28 +390,38 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException("2FA is already enabled for this account.");
         }
 
+        if (otp != null && !otp.trim().isEmpty()) {
+            log.debug("Verifying OTP to enable 2FA for user associated with email: {}", user.getEmail());
+            validateOtp(user.getEmail(), OTP_TYPE_2FA_ENABLE, otp);
+        } else {
+            log.warn("No OTP provided for enabling 2FA for user associated with email: {}", user.getEmail());
+            throw new AuthException("OTP is required to enable 2FA.");
+        }
+
         user.setTwoFactorEnabled(true);
         userRepository.save(user);
         log.info("2FA enabled successfully for user {}", user.getUsername());
     }
 
     @Override
+    @Transactional
     public void disableTwoFactorAuth(Disable2FARequest request) {
         String username = request.username();
         String otp = request.otp();
-        log.info("Disabling 2FA For user {}", username);
-        User user = findUserByUsername(username);
 
+        log.info("Disabling 2FA For user {}", username);
+
+        User user = findUserByUsername(username);
         checkUserStatus(user, STATUS_ACTIVE, "Cannot disable 2FA for inactive account");
 
         if (!user.getTwoFactorEnabled()) {
             log.warn("Attempted to disable 2FA for user associated with email {} but it was not enabled.",
                     user.getEmail());
-            return;
+            throw new AuthException("2FA is not enabled for this account.");
         }
 
         log.debug("Verifying OTP to disable 2FA for user associated with email: {}", user.getEmail());
-        validateOtp(username, OTP_TYPE_2FA, otp);
+        validateOtp(user.getEmail(), OTP_TYPE_2FA_DISABLE, otp);
 
         user.setTwoFactorEnabled(false);
         userRepository.save(user);
@@ -386,9 +429,10 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void sendOtpToDisable2FA(SentOtpRequest request) {
+    public TokenResponse sendOtpToDisable2FA(SentOtpRequest request) {
         String username = request.username();
         log.info("Sending OTP to disable 2FA for user {}", username);
+
         User user = findUserByUsername(username);
         checkUserStatus(user, STATUS_ACTIVE, "Cannot send otp for inactive account");
 
@@ -397,42 +441,61 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("2FA is not enabled for this account.");
         }
 
-        otpService.generateAndStoreOtp(username, OTP_TYPE_2FA);
+        try {
+            String challengeToken = challengeTokenService.generateChallengerToken(user.getEmail());
+
+            String otp = otpService.generateAndStoreOtp(user.getEmail(), OTP_TYPE_2FA_DISABLE);
+            emailService.sendOtpEmail(user.getEmail(),
+                    "Your EMS 2FA Disable Code",
+                    otp);
+            log.info("OTP sent successfully to disable 2FA for user {}", username);
+            return TokenResponse.builder()
+                    .challengeToken(challengeToken)
+                    .build();
+        } catch (Exception e) {
+            log.error("Failed to send OTP to disable 2FA for user {}: {}", username, e.getMessage(), e);
+            throw new AuthException("Failed to send OTP. Please try again.");
+        }
     }
 
     @Override
     @Transactional
-    public TokenResponse verifyTwoFactorOtp(String authorizationHeader, VerifyOtpRequest request,
+    public TokenResponse verifyTwoFactorOtp(TwoFactorVerificationRequest request,
             HttpServletResponse response) {
-        String accessToken = jwtService.extractValidatedToken(authorizationHeader);
-
-        String usernameFromToken = jwtService.extractUsername(accessToken);
         String username = request.getIdentifier();
+        String otp = request.getOtp();
+        String challengeToken = request.getChallengeToken();
 
-        if (!username.equals(usernameFromToken)) {
-            log.warn("Token subject does not match the OTP identifier. Token user: {}, Identifier: {}",
-                    usernameFromToken, username);
-            throw new UnauthorizedException("Access token does not belong to the specified identifier.");
+        log.info("Verifying 2FA OTP for identifier: {}", username);
+
+        User user = findUserByUsername(username);
+
+        if (challengeToken == null || !challengeTokenService.validateChallengeToken(user.getEmail(), challengeToken)) {
+            log.warn("Invalid or missing challenge token for 2FA verification for user associated with email: {}",
+                    username);
+            throw new AuthException("Invalid or missing challenge token.");
+
         }
 
         log.info("Verifying 2FA OTP for identifier: {}", username);
 
-        validateOtp(username, OTP_TYPE_2FA, request.getOtp());
-
-        User user = findUserByUsername(username);
-
         checkUserStatus(user, STATUS_ACTIVE, "Cannot verify for inactive account");
+
+        validateOtp(user.getEmail(), OTP_TYPE_2FA_LOGIN, otp);
 
         updateLastLogin(user);
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         log.info("2FA verification successful for user {}. Tokens generated.", user.getUsername());
+
+        CustomUserDetails userDetails = new CustomUserDetails(user);
 
         // Set accessToken và refreshToken vào cookie khi 2FA thành công
         String newAccessToken = jwtService.generateAccessToken(userDetails);
         String newRefreshToken = jwtService.generateRefreshToken(userDetails, user.getId());
         cookieUtil.createAccessTokenCookie(response, newAccessToken);
         cookieUtil.createRefreshTokenCookie(response, newRefreshToken);
+
+        log.info("2FA login verification successful for user: {}", user.getUsername());
 
         return createTokenResponse(newAccessToken, user);
     }
@@ -443,38 +506,30 @@ public class AuthServiceImpl implements AuthService {
         log.info("Resend OTP request received for identifier: {}, type: {}", request.username(), request.otpType());
 
         String username = request.username();
-        User user = userRepository.findByUsername(username).orElse(null);
+        String otpType = request.otpType();
+        String challengeToken = request.challengeToken();
 
-        if (user == null) {
-            log.warn("Resend OTP requested for non-existent user {}", username);
-            return;
-        }
-        if (OTP_TYPE_2FA.equalsIgnoreCase(request.otpType()) && !user.getTwoFactorEnabled()) {
-            log.warn("Resend 2FA OTP requested for user {} but 2FA is not enabled", username);
-            return;
+        validateOtpType(otpType);
+
+        User user = userRepository.findByUsername(username).orElseThrow(() -> new ResourceNotFoundException(
+                "User not found with username: " + username));
+
+        validateOtpBusinessRules(user, otpType);
+
+        if (requiresChallengeToken(otpType)) {
+            if (challengeToken == null
+                    || !challengeTokenService.validateChallengeToken(user.getEmail(), challengeToken)) {
+                log.warn("Invalid or missing challenge token for resend OTP for user associated with email: {}",
+                        user.getEmail());
+                throw new AuthException("Invalid or missing challenge token.");
+            }
+            challengeTokenService.generateChallengerToken(user.getEmail());
         }
 
         try {
-            String otp = otpService.generateAndStoreOtp(username, request.otpType());
+            String otp = otpService.generateAndStoreOtp(user.getEmail(), otpType);
 
-            String subject;
-            switch (request.otpType()) {
-                case OTP_TYPE_2FA:
-                    subject = "Your New EMS 2FA Code";
-                    break;
-
-                case OTP_TYPE_PWD_RESET:
-                    subject = "Your New EMS Password Reset Code";
-                    break;
-
-                case OTP_TYPE_EMAIL_VERIFY:
-                    subject = "Your EMS Account Verification Code";
-                    break;
-
-                default:
-                    log.error("Invalid OTP type '{}' encountered during resend", request.otpType());
-                    return;
-            }
+            String subject = getOtpEmailSubject(otpType);
 
             emailService.sendOtpEmail(user.getEmail(), subject, otp);
             log.info("Resent OTP successfully for identifier: {}, type: {}", username, request.otpType());
@@ -487,6 +542,39 @@ public class AuthServiceImpl implements AuthService {
                     e);
         }
 
+    }
+
+    private boolean requiresChallengeToken(String otpType) {
+        return Arrays.asList(OTP_TYPE_2FA_LOGIN, OTP_TYPE_2FA_ENABLE, OTP_TYPE_2FA_DISABLE).contains(otpType);
+    }
+
+    private void validateOtpBusinessRules(User user, String otpType) {
+        switch (otpType) {
+            case OTP_TYPE_2FA_LOGIN, OTP_TYPE_2FA_DISABLE -> {
+                if (!user.getTwoFactorEnabled()) {
+                    throw new IllegalArgumentException("2FA is not enabled for this account.");
+                }
+            }
+            case OTP_TYPE_2FA_ENABLE -> {
+                if (user.getTwoFactorEnabled()) {
+                    throw new IllegalArgumentException("2FA is already enabled for this account.");
+                }
+            }
+            case OTP_TYPE_PWD_RESET, OTP_TYPE_EMAIL_VERIFY -> {
+                // No additional validation needed
+            }
+            default -> throw new IllegalArgumentException("Unsupported OTP type: " + otpType);
+        }
+    }
+
+    private void validateOtpType(String otpType) {
+        if (!Arrays
+                .asList(OTP_TYPE_2FA_LOGIN, OTP_TYPE_PWD_RESET, OTP_TYPE_EMAIL_VERIFY, OTP_TYPE_2FA_ENABLE,
+                        OTP_TYPE_2FA_DISABLE)
+                .contains(otpType)) {
+            log.error("Invalid OTP type provided: {}", otpType);
+            throw new IllegalArgumentException("Invalid OTP type provided.");
+        }
     }
 
     @Override
@@ -508,19 +596,71 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void verifyEmailOtp(String email, String otp) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+
         log.info("Verifying email OTP for user: {}", user.getUsername());
         if (user.getStatus() != null && STATUS_ACTIVE.equalsIgnoreCase(user.getStatus().getStatus())) {
-            throw new AuthException("Email alrady verified");
+            throw new AuthException("Email already verified");
         }
         validateOtp(email, OTP_TYPE_EMAIL_VERIFY, otp);
         StatusCode activeStatus = statusCodeRepository.findByEntityTypeAndStatus("USER", "ACTIVE")
                 .orElseThrow(() -> new ResourceNotFoundException("Default status not found"));
         user.setStatus(activeStatus);
+        user.setEmailVerified(true);
         userRepository.save(user);
         log.info("Email OTP verified successfully for user: {}", user.getUsername());
+    }
+
+    @Override
+    public void sendOtpToEnable2FA(SentOtpRequest request) {
+        String username = request.username();
+        log.info("Sending OTP to enable 2FA for user {}", username);
+
+        User user = findUserByUsername(username);
+        checkUserStatus(user, STATUS_ACTIVE, "Cannot send otp for inactive account");
+
+        if (user.getTwoFactorEnabled()) {
+            log.warn("User {} tried to request enable-2FA OTP but 2FA is already enabled.", user.getUsername());
+            throw new IllegalArgumentException("2FA is already enabled for this account.");
+        }
+
+        try {
+            String otp = otpService.generateAndStoreOtp(user.getEmail(), OTP_TYPE_2FA_ENABLE);
+            emailService.sendOtpEmail(user.getEmail(),
+                    "Your EMS 2FA Code",
+                    otp);
+            log.info("OTP sent successfully to enable 2FA for user {}", username);
+        } catch (Exception e) {
+            log.error("Failed to send OTP to enable 2FA for user {}: {}", username, e.getMessage(), e);
+            throw new AuthException("Failed to send OTP. Please try again.");
+        }
+
+    }
+
+    @Override
+    public ResetPasswordVerificationResponse verifyPasswordResetOtp(String email, String otp) {
+        if (!otpService.validateOtp(email, OTP_TYPE_PWD_RESET, otp)) {
+            log.warn("Invalid OTP provided for password reset verification for email: {}", email);
+            throw new OtpException("Invalid OTP provided.");
+        }
+
+        log.info("Password reset OTP verified successfully for email: {}", email);
+
+        String resetToken = generateSecureResetToken();
+        resetTokenService.storeResetToken(email, resetToken, Duration.ofMinutes(10));
+
+        return ResetPasswordVerificationResponse.builder()
+                .resetToken(resetToken)
+                .message("OTP verified successfully. Use the reset token to reset your password.")
+                .expiresAt(System.currentTimeMillis() + Duration.ofMinutes(10).toMillis())
+                .build();
+    }
+
+    private String generateSecureResetToken() {
+        return UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
     }
 
 }

@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class TokenResponse {
@@ -14,5 +14,6 @@ public class TokenResponse {
     private Long accessTokenExpiresIn;
     private boolean twoFactorEnabled;
     private UserResponseDTO user;
+    private String challengeToken;
 
 }

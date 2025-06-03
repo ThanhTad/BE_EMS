@@ -52,10 +52,19 @@ public class AuthController {
                 ApiResponse.accepted("If an account exists for this email, a password reset code has been sent."));
     }
 
+    @PostMapping("/pass-reset/verify-otp")
+    @Operation(summary = "Verify password reset OTP and get reset token")
+    public ResponseEntity<ApiResponse<ResetPasswordVerificationResponse>> verifyPasswordResetOtp(
+            @Valid @RequestBody VerifyOtpRequest request) {
+        ResetPasswordVerificationResponse response = authService.verifyPasswordResetOtp(
+                request.getIdentifier(), request.getOtp());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @PostMapping("/pass-reset/confirm")
-    @Operation(summary = "Confirm password reset using the OTP and set a new password")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        authService.resetPassword(request);
+    @Operation(summary = "Reset password using reset token")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordWithTokenRequest request) {
+        authService.resetPasswordWithToken(request.getEmail(), request.getResetToken(), request.getNewPassword());
         return ResponseEntity.ok(ApiResponse.success("Password has been reset successfully", null));
     }
 
@@ -82,6 +91,13 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("2FA has been disabled", null));
     }
 
+    @PostMapping("/2fa/enable/sent-otp")
+    @Operation(summary = "Send OTP for enabling 2FA")
+    public ResponseEntity<ApiResponse<Void>> sentOTPToEnable2FA(@Valid @RequestBody SentOtpRequest request) {
+        authService.sendOtpToEnable2FA(request);
+        return ResponseEntity.ok(ApiResponse.success("OTP has been sent", null));
+    }
+
     @PostMapping("/2fa/disable/sent-otp")
     @Operation(summary = "Send OTP for disable 2fa")
     public ResponseEntity<ApiResponse<Void>> sentOTPToDisable2FA(@Valid @RequestBody SentOtpRequest request) {
@@ -92,10 +108,9 @@ public class AuthController {
     @PostMapping("/2fa/verify")
     @Operation(summary = "Verify 2FA OTP after successful password login")
     public ResponseEntity<ApiResponse<TokenResponse>> verify(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @Valid @RequestBody VerifyOtpRequest request,
+            @Valid @RequestBody TwoFactorVerificationRequest request,
             HttpServletResponse response) {
-        TokenResponse tokenResponse = authService.verifyTwoFactorOtp(authorizationHeader, request, response);
+        TokenResponse tokenResponse = authService.verifyTwoFactorOtp(request, response);
         return ResponseEntity.ok(ApiResponse.success(tokenResponse));
     }
 

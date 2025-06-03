@@ -6,15 +6,10 @@ import lombok.Data;
 
 @Data
 public class VerifyOtpRequest {
-
-    @NotBlank
+    @NotBlank(message = "Identifier is required")
     private String identifier;
 
-    @NotBlank
-    @Size(min = 6, max = 6)
+    @NotBlank(message = "OTP code is required")
+    @Size(min = 6, max = 6, message = "OTP code must be exactly 6 characters")
     private String otp;
-
-    @NotBlank
-    private String otpType;
-
 }

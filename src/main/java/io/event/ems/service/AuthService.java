@@ -6,10 +6,10 @@ import io.event.ems.dto.LoginRequestDTO;
 import io.event.ems.dto.RegisterRequestDTO;
 import io.event.ems.dto.RequestPasswordResetRequest;
 import io.event.ems.dto.ResendOtpRequest;
-import io.event.ems.dto.ResetPasswordRequest;
+import io.event.ems.dto.ResetPasswordVerificationResponse;
 import io.event.ems.dto.SentOtpRequest;
 import io.event.ems.dto.TokenResponse;
-import io.event.ems.dto.VerifyOtpRequest;
+import io.event.ems.dto.TwoFactorVerificationRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public interface AuthService {
@@ -20,17 +20,21 @@ public interface AuthService {
 
     void requestPasswordReset(RequestPasswordResetRequest request);
 
-    void resetPassword(ResetPasswordRequest request);
+    void resetPasswordWithToken(String email, String resetToken, String newPassword);
+
+    ResetPasswordVerificationResponse verifyPasswordResetOtp(String email, String otp);
 
     void logout(String refreshToken, HttpServletResponse response);
+
+    void sendOtpToEnable2FA(SentOtpRequest request);
 
     void enableTwoFactorAuth(Enable2FARequest request);
 
     void disableTwoFactorAuth(Disable2FARequest request);
 
-    void sendOtpToDisable2FA(SentOtpRequest request);
+    TokenResponse sendOtpToDisable2FA(SentOtpRequest request);
 
-    TokenResponse verifyTwoFactorOtp(String authorizationHeader, VerifyOtpRequest request,
+    TokenResponse verifyTwoFactorOtp(TwoFactorVerificationRequest request,
             HttpServletResponse response);
 
     void resendOtp(ResendOtpRequest request);
