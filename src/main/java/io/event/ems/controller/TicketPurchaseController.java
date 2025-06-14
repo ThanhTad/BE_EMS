@@ -1,5 +1,6 @@
 package io.event.ems.controller;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,8 +18,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.event.ems.dto.ApiResponse;
+import io.event.ems.dto.MultiItemPurchaseRequestDTO;
 import io.event.ems.dto.PaymentResponseDTO;
 import io.event.ems.dto.TicketPurchaseDTO;
+import io.event.ems.dto.TicketPurchaseDetailDTO;
 import io.event.ems.exception.ResourceNotFoundException;
 import io.event.ems.service.impl.TicketPurchaseServiceImpl;
 import io.event.ems.util.VnPayUtil;
@@ -44,6 +47,15 @@ public class TicketPurchaseController {
         return ResponseEntity.ok(ApiResponse.success(ticketPurchases));
     }
 
+    @GetMapping("/transaction/{id}")
+    @Operation(summary = "Get all ticket purchases by transaction ID", description = "Retrieves all ticket purchases by transaction Id with pagination support.")
+    public ResponseEntity<ApiResponse<List<TicketPurchaseDTO>>> getTicketPurchasesByTransactionId(
+            @PathVariable String transactionId) {
+        List<TicketPurchaseDTO> ticketPurchases = ticketPurchaseService
+                .getTicketPurchasesByTransactionId(transactionId);
+        return ResponseEntity.ok(ApiResponse.success(ticketPurchases));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get ticket purchase by ID", description = "Retrieves a ticket purchase by its ID.")
     public ResponseEntity<ApiResponse<TicketPurchaseDTO>> getTicketPurchaseById(@PathVariable UUID id)
@@ -53,14 +65,32 @@ public class TicketPurchaseController {
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket purchase not found with id: " + id))));
     }
 
+    @GetMapping("/{id}/details")
+    @Operation(summary = "Get tickets purchase with event details by ID", description = "Retrieves a ticket purchase with full event details, suitable for UI card")
+    public ResponseEntity<ApiResponse<TicketPurchaseDetailDTO>> getTicketPurchaseDetailById(@PathVariable UUID id)
+            throws ResourceNotFoundException {
+        Optional<TicketPurchaseDetailDTO> ticketPurchase = ticketPurchaseService.getTicketPurchaseDetailById(id);
+        return ResponseEntity.ok(ApiResponse.success(ticketPurchase
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket purchase not found with id: " + id))));
+    }
+
+    @GetMapping("/user/{id}/details")
+    @Operation(summary = "Get detailed ticket purchases by user ID", description = "Retrieves detailed ticket purchase for a user, includint event info")
+    public ResponseEntity<ApiResponse<Page<TicketPurchaseDetailDTO>>> getTicketPurchaseDetailsByUserId(
+            @PathVariable UUID id, @PageableDefault(size = 20) Pageable pageable) {
+        Page<TicketPurchaseDetailDTO> ticketPurchases = ticketPurchaseService.getTicketPurchaseDetailsByUserId(id,
+                pageable);
+        return ResponseEntity.ok(ApiResponse.success(ticketPurchases));
+    }
+
     @PostMapping("/initiate")
     @Operation(summary = "Create a new ticket purchase", description = "Creates a new ticket purchase and returns the created ticket purchase.")
     public ResponseEntity<ApiResponse<PaymentResponseDTO>> initiatePurchase(
-            @Valid @RequestBody TicketPurchaseDTO ticketPurchaseDTO,
+            @Valid @RequestBody MultiItemPurchaseRequestDTO dto,
             HttpServletRequest request) throws ResourceNotFoundException {
 
         String clientIpAddress = VnPayUtil.getIpAddress(request);
-        PaymentResponseDTO response = ticketPurchaseService.initiateTicketPurchase(ticketPurchaseDTO, clientIpAddress);
+        PaymentResponseDTO response = ticketPurchaseService.initiateTicketPurchase(dto, clientIpAddress);
         return ResponseEntity.ok(ApiResponse.success("Payment initiated. Redirect user to payment url", response));
     }
 
@@ -109,8 +139,8 @@ public class TicketPurchaseController {
 
     @PostMapping("/{id}/confirm")
     @Operation(summary = "Confirm purchase without payment (for testing)", description = "Chuyển trạng thái đơn mua thành SUCCESS để test")
-    public ResponseEntity<ApiResponse<TicketPurchaseDTO>> confirmPurchase(@PathVariable("id") UUID purchaseID) {
-        TicketPurchaseDTO dto = ticketPurchaseService.confirmPurchase(purchaseID);
+    public ResponseEntity<ApiResponse<List<TicketPurchaseDTO>>> confirmPurchase(@PathVariable("id") String purchaseID) {
+        List<TicketPurchaseDTO> dto = ticketPurchaseService.confirmPurchaseByGroup(purchaseID);
         return ResponseEntity.ok(ApiResponse.success("Purchase confirmed", dto));
     }
 

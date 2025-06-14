@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vé tham dự sự kiện</title>
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 0;
+      }
+
+      .container {
+        background-color: #ffffff;
+        max-width: 600px;
+        margin: 30px auto;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .header img {
+        width: 100px;
+        height: auto;
+        margin-bottom: 10px;
+      }
+
+      .title {
+        font-size: 22px;
+        color: #333;
+        font-weight: 600;
+      }
+
+      .content {
+        font-size: 16px;
+        color: #555;
+        line-height: 1.6;
+      }
+
+      .qr-code {
+        text-align: center;
+        margin: 30px 0;
+      }
+
+      .footer {
+        text-align: center;
+        color: #aaa;
+        font-size: 14px;
+        margin-top: 30px;
+      }
+
+      .highlight {
+        color: #0b8457;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="title">🎫 Xác nhận đặt vé thành công</div>
+        <p class="subtitle" th:text="'Mã giao dịch: ' + ${transactionId}">
+          Mã GD: #123
+        </p>
+      </div>
+
+      <div class="content">
+        <p>
+          Xin chào <span class="highlight" th:text="${name}">Người dùng</span>,
+        </p>
+        <p>
+          Cảm ơn bạn đã đặt vé. Dưới đây là thông tin chi tiết các vé của bạn.
+          Vui lòng trình mã QR tương ứng cho từng vé khi check-in.
+        </p>
+      </div>
+
+      <!-- === LẶP QUA DANH SÁCH VÉ === -->
+      <div th:each="ticket, iterStat : ${tickets}">
+        <div class="ticket-info" style="margin-top: 25px">
+          <h3>📋 Thông tin vé #<span th:text="${iterStat.count}">1</span></h3>
+          <div class="info-row">
+            <span class="info-label">Sự kiện:</span>
+            <span class="info-value" th:text="${ticket.eventName}"
+              >Tên sự kiện</span
+            >
+          </div>
+          <div class="info-row">
+            <span class="info-label">Thời gian:</span>
+            <span
+              class="info-value"
+              th:text="${#temporals.format(ticket.eventDate, 'dd/MM/yyyy HH:mm')}"
+              >01/01/2025 19:00</span
+            >
+          </div>
+          <div class="info-row">
+            <span class="info-label">Loại vé:</span>
+            <span class="info-value" th:text="${ticket.ticketType}">VIP</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Số lượng:</span>
+            <span class="info-value" th:text="${ticket.quantity}">1</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Mã vé:</span>
+            <span class="info-value" th:text="${ticket.purchaseId}"
+              >#12345</span
+            >
+          </div>
+        </div>
+
+        <div class="qr-code">
+          <h3>🔍 Mã QR cho vé #<span th:text="${iterStat.count}">1</span></h3>
+          <!-- Tham chiếu đến CID đã được truyền vào -->
+          <img th:src="'cid:' + ${ticket.qrImageCid}" alt="QR Code" />
+        </div>
+      </div>
+      <div class="content">
+        <p>
+          Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi qua
+          email hoặc hotline.
+        </p>
+        <p>Hẹn gặp lại bạn tại sự kiện!</p>
+      </div>
+      <div class="footer">© 2025 Sự kiện EMS. Mọi quyền được bảo lưu.</div>
+    </div>
+  </body>
+</html>

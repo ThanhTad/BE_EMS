@@ -2,21 +2,29 @@ package io.event.ems.service.impl;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import io.event.ems.config.VNPayConfig;
+import io.event.ems.dto.MultiItemPurchaseRequestDTO;
 import io.event.ems.dto.PaymentResponseDTO;
+import io.event.ems.dto.PurchaseItemDTO;
 import io.event.ems.dto.TicketPurchaseDTO;
+import io.event.ems.dto.TicketPurchaseDetailDTO;
 import io.event.ems.exception.ResourceNotFoundException;
 import io.event.ems.mapper.TicketPurchaseMapper;
 import io.event.ems.model.StatusCode;
@@ -50,10 +58,20 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
     private final EmailService emailService;
     private final QrCodeService qrCodeService;
 
+    private static final int MAX_TICKETS_PER_USER = 10;
+
     @Override
     public Page<TicketPurchaseDTO> getAllTicketPurchases(Pageable pageable) {
         return ticketPurchaseRepository.findAll(pageable)
                 .map(ticketPurchaseMapper::toDTO);
+    }
+
+    @Override
+    public List<TicketPurchaseDTO> getTicketPurchasesByTransactionId(String transactionId) {
+        List<TicketPurchase> purchases = ticketPurchaseRepository.findByTransactionId(transactionId);
+        return purchases.stream()
+                .map(ticketPurchaseMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -63,55 +81,74 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
     }
 
     @Override
-    public PaymentResponseDTO initiateTicketPurchase(TicketPurchaseDTO ticketPurchaseDTO, String clientIpAddress)
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public PaymentResponseDTO initiateTicketPurchase(MultiItemPurchaseRequestDTO request, String clientIpAddress)
             throws ResourceNotFoundException {
-        log.info("Initiating ticket purchase for user {} and ticket {}", ticketPurchaseDTO.getUserId(),
-                ticketPurchaseDTO.getTicketId());
-
-        User user = userRepository.findById(ticketPurchaseDTO.getUserId())
+        User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with id: " + ticketPurchaseDTO.getUserId()));
-        Ticket ticket = ticketRepository.findById(ticketPurchaseDTO.getTicketId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Ticket not found with id: " + ticketPurchaseDTO.getTicketId()));
+                        "User not found with id: " + request.getUserId()));
         StatusCode pendingStatus = statusCodeRepository.findByEntityTypeAndStatus("TICKET_PURCHASE", "PENDING")
                 .orElseThrow(
                         () -> new ResourceNotFoundException("Status 'PENDING' for 'TICKET_PURCHASE' not cofigured"));
 
-        if (ticket.getAvailableQuantity() < ticketPurchaseDTO.getQuantity()) {
-            throw new IllegalArgumentException("Not enough tickets available for ticket ID: " + ticket.getId());
+        String transactionId = UUID.randomUUID().toString();
+        log.info("Initiating multi-item purchase with transactionId: {}", transactionId);
+
+        List<TicketPurchase> purchasesToSave = new ArrayList<>();
+        BigDecimal grandTotal = BigDecimal.ZERO;
+        Map<UUID, Integer> eventTicketCount = new HashMap<>();
+
+        for (PurchaseItemDTO item : request.getItems()) {
+            Ticket ticket = ticketRepository.findById(item.getTicketId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: " + item.getTicketId()));
+            if (ticket.getAvailableQuantity() < item.getQuantity()) {
+                throw new IllegalArgumentException("Not enough tickets available for ticket ID: " + ticket.getId());
+            }
+            UUID eventId = ticket.getEvent().getId();
+            eventTicketCount.put(eventId, eventTicketCount.getOrDefault(eventId, 0) + item.getQuantity());
+
+            TicketPurchase ticketPurchase = new TicketPurchase();
+            ticketPurchase.setUser(user);
+            ticketPurchase.setTicket(ticket);
+            ticketPurchase.setQuantity(item.getQuantity());
+            ticketPurchase.setStatus(pendingStatus);
+            ticketPurchase.setTransactionId(transactionId);
+            ticketPurchase.setPurchaseDate(LocalDateTime.now());
+            ticketPurchase.setPaymentMethod("VNPAY");
+
+            BigDecimal itemTotalPrice = ticket.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+            ticketPurchase.setTotalPrice(itemTotalPrice);
+            grandTotal = grandTotal.add(itemTotalPrice);
+
+            ticket.setAvailableQuantity(ticket.getAvailableQuantity() - item.getQuantity());
+            purchasesToSave.add(ticketPurchase);
         }
 
-        if (ticketPurchaseRepository.existsByUserAndTicket(user, ticket)) {
-            throw new IllegalArgumentException("User has already purchased this ticket");
+        for (Map.Entry<UUID, Integer> entry : eventTicketCount.entrySet()) {
+            int totalAlreadyPurchased = ticketPurchaseRepository.countTotalTicketsByUserAndEvent(user.getId(),
+                    entry.getKey());
+            if (totalAlreadyPurchased + entry.getValue() > MAX_TICKETS_PER_USER) {
+                throw new IllegalArgumentException(
+                        "Exceeded maximun tickets per user limit for event " + entry.getKey());
+            }
         }
 
-        TicketPurchase purchase = new TicketPurchase();
-        purchase.setUser(user);
-        purchase.setTicket(ticket);
-        purchase.setQuantity(ticketPurchaseDTO.getQuantity());
-        purchase.setStatus(pendingStatus);
+        ticketPurchaseRepository.saveAll(purchasesToSave);
+        log.info("Created {} pending TicketPurchase records for transactionId: {}", purchasesToSave.size(),
+                transactionId);
 
-        BigDecimal totalPrice = ticket.getPrice().multiply(BigDecimal.valueOf(ticketPurchaseDTO.getQuantity()));
-        purchase.setTotalPrice(totalPrice);
+        String paymentUrl = createVnPayPaymentUrl(transactionId, grandTotal, clientIpAddress);
 
-        ticket.setAvailableQuantity(ticket.getAvailableQuantity() - ticketPurchaseDTO.getQuantity());
-        ticketRepository.save(ticket);
-
-        TicketPurchase savedPurchase = ticketPurchaseRepository.save(purchase);
-        log.info("Created pending TicketPurchase with ID: " + savedPurchase.getId());
-
-        String paymentUrl = createVnPayPaymentUrl(savedPurchase, clientIpAddress);
-
-        return new PaymentResponseDTO(savedPurchase.getId(), paymentUrl, "Please proceed with VNPay payment");
+        return new PaymentResponseDTO(UUID.fromString(transactionId), paymentUrl, "Please proceed with VNPay payment");
 
     }
 
-    private String createVnPayPaymentUrl(TicketPurchase purchase, String ipAddress) {
-        long amount = purchase.getTotalPrice().multiply(new BigDecimal(100)).longValueExact();
-        String orderInfo = "Thanh toan ve su kien " + purchase.getTicket().getEvent().getId() + " mua hang "
-                + purchase.getId();
-        String txnRef = purchase.getId().toString();
+    private String createVnPayPaymentUrl(String transactionId, BigDecimal grandTotal, String ipAddress) {
+        long amount = grandTotal.multiply(new BigDecimal(100)).longValueExact();
+
+        String orderInfo = "Thanh toan don hang ve su kien. Ma don hang: " + transactionId;
+
+        String txnRef = transactionId;
 
         Map<String, String> vnp_Params = new HashMap<>();
         vnp_Params.put("vnp_Version", vnPayConfig.getVnpVersion());
@@ -140,7 +177,7 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
 
         queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
         String paymentUrl = vnPayConfig.getVnpUrl() + "?" + queryUrl;
-        log.info("Generated VnPay URL for purchase {}: {}", purchase.getId(), paymentUrl);
+        log.info("Generated VnPay URL for purchase {}: {}", transactionId, paymentUrl);
 
         return paymentUrl;
     }
@@ -204,12 +241,15 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
     @Transactional
     public Map<String, String> processVnPayIpn(HttpServletRequest request) {
         Map<String, String> response = new HashMap<>();
+        String transactionId = "UNKNOWN";
         try {
             Map<String, String> fields = VnPayUtil.extractParamsFromRequest(request);
             String vnp_SecureHash = fields.remove("vnp_SecureHash");
 
+            transactionId = fields.get("vnp_SecureHash");
+
             if (vnp_SecureHash == null || vnp_SecureHash.isEmpty()) {
-                log.error("IPN Error: Missing SecureHash");
+                log.error("IPN Error [TxnRef: {}]: Missing SecureHash", transactionId);
                 response.put("RspCode", "97");
                 response.put("Message", "Invalid Checksum");
                 return response;
@@ -217,100 +257,104 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
 
             String signValue = VnPayUtil.hashAllFields(fields, vnPayConfig.getVnpHashSecret());
             if (signValue.equals(vnp_SecureHash)) {
-                UUID purchaseId = UUID.fromString(fields.get("vnp_TxnRef"));
-                Optional<TicketPurchase> purchaseOpt = ticketPurchaseRepository.findById(purchaseId);
+                List<TicketPurchase> purchasesInGroup = ticketPurchaseRepository.findByTransactionId(transactionId);
 
-                if (purchaseOpt.isEmpty()) {
-                    log.error("IPN Error: Order not found for TxnRef: {}", purchaseId);
+                if (purchasesInGroup.isEmpty()) {
+                    log.error("IPN Error: Order not found for TxnRef: {}", transactionId);
                     response.put("RspCode", "01");
                     response.put("Message", "Order not found");
                     return response;
                 }
 
-                TicketPurchase purchase = purchaseOpt.get();
-                StatusCode pendingStatus = statusCodeRepository.findByEntityTypeAndStatus("TICKET_PURCHASE", "PENDING")
-                        .orElseThrow(() -> new IllegalArgumentException("Status 'PENDING' not configured."));
-                StatusCode successStatus = statusCodeRepository.findByEntityTypeAndStatus("TICKET_PURCHASE", "SUCCESS")
-                        .orElseThrow(() -> new IllegalArgumentException("Status 'SUCCESS' not configured."));
-                StatusCode failedStatus = statusCodeRepository.findByEntityTypeAndStatus("TICKET_PURCHASE", "FAILED")
-                        .orElseThrow(() -> new IllegalArgumentException("Status 'FAILED' not configured."));
-
-                if (!purchase.getStatus().getId().equals(pendingStatus.getId())) {
-                    log.warn("IPN Infor: Order {} already processed (status {}). Replying success to VNPay.",
-                            purchaseId, purchase.getStatus().getStatus());
+                TicketPurchase firstPurchase = purchasesInGroup.get(0);
+                if (!"PENDING".equals(firstPurchase.getStatus().getStatus())) {
+                    log.warn("IPN Info [TxnRef: {}]: Order group already processed (status {}).",
+                            transactionId, firstPurchase.getStatus().getStatus());
                     response.put("RspCode", "00");
                     response.put("Message", "Order already confirmed");
                     return response;
                 }
 
-                boolean checkAmount = true;
+                BigDecimal totalOrderAmount = purchasesInGroup.stream()
+                        .map(TicketPurchase::getTotalPrice)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
                 long vnpAmount = Long.parseLong(fields.get("vnp_Amount"));
-                long orderAmount = purchase.getTotalPrice().multiply(new BigDecimal(100)).longValueExact();
-                if (checkAmount && vnpAmount != orderAmount) {
-                    log.error("IPN Error: Invalid amount for TxnRef: {}. Expected: {}, Received: {}", purchaseId,
-                            orderAmount, vnpAmount);
+                long orderAmountInCents = totalOrderAmount.multiply(new BigDecimal(100)).longValueExact();
+
+                if (vnpAmount != orderAmountInCents) {
+                    log.error("IPN Error [TxnRef: {}]: Invalid amount. Expected: {}, Received: {}", transactionId,
+                            orderAmountInCents, vnpAmount);
                     response.put("RspCode", "04");
                     response.put("Message", "Invalid amount");
                     return response;
                 }
 
                 String vnp_ResponseCode = fields.get("vnp_ResponseCode");
-                String vnp_TransactionNo = fields.get("vnp_TransactionNo");
-                String vnp_BankCode = fields.getOrDefault("vnp_BankCode", "");
-                String vnp_CardType = fields.getOrDefault("vnp_CardType", "");
 
                 if ("00".equals(vnp_ResponseCode)) {
-                    log.info("IPN Success: Payment successful for TxnRef: {}", purchaseId);
-                    processSuccessfulPaymentInternal(purchase, vnp_TransactionNo,
-                            "VNPay - " + vnp_BankCode + " " + vnp_CardType, successStatus);
+                    log.info("IPN Success [TxnRef: {}]: Payment successful.", transactionId);
+                    // Gọi hàm xử lý thành công cho cả nhóm
+                    processSuccessfulPaymentInternal(purchasesInGroup);
                     response.put("RspCode", "00");
                     response.put("Message", "Confirm Success");
-                    return response;
                 } else {
-                    log.warn("IPN Failed: Payment failed for TxnRef: {} with ResponseCode: {}", purchaseId,
+                    log.warn("IPN Failed [TxnRef: {}]: Payment failed with ResponseCode: {}", transactionId,
                             vnp_ResponseCode);
-                    processFailedPaymentInternal(purchase, "VNPay Response Code: " + vnp_ResponseCode, failedStatus);
+                    // Gọi hàm xử lý thất bại cho cả nhóm
+                    processFailedPaymentInternal(purchasesInGroup);
+                    // Vẫn trả về "00" cho VNPay để họ không gửi lại IPN
                     response.put("RspCode", "00");
                     response.put("Message", "Confirm Success (but transaction failed)");
                 }
             } else {
-                log.error("IPN Error: Invalid SecureHash for TxnRef: {}", fields.get("vnp_TxnRef"));
+                log.error("IPN Error [TxnRef: {}]: Invalid SecureHash", transactionId);
                 response.put("RspCode", "97");
                 response.put("Message", "Invalid Checksum");
             }
         } catch (Exception e) {
-            log.error("IPN Error: Exception processing IPN", e);
+            log.error("IPN Error [TxnRef: {}]: Exception processing IPN", transactionId, e);
             response.put("RspCode", "99");
             response.put("Message", "Unknown error");
         }
         return response;
     }
 
-    private void processSuccessfulPaymentInternal(TicketPurchase purchase, String transactionId, String paymentMethod,
-            StatusCode successStatus) {
-        purchase.setStatus(successStatus);
-        purchase.setTransactionId(transactionId);
-        purchase.setPaymentMethod(paymentMethod);
-        ticketPurchaseRepository.save(purchase);
-        log.info("Processed successful payment for purchase {}", purchase.getId());
+    private void processSuccessfulPaymentInternal(List<TicketPurchase> purchasesInGroup) {
+        StatusCode successStatus = statusCodeRepository.findByEntityTypeAndStatus("TICKET_PURCHASE", "SUCCESS")
+                .orElseThrow(() -> new IllegalStateException("SUCCESS status not configured."));
 
-        // gui mail va tao qr
-        byte[] qrCode = qrCodeService.genarateQrCodeForPurchase(purchase.getId());
-        emailService.sendQrCode(purchase.getUser().getEmail(), purchase.getUser().getFullName(), qrCode);
+        purchasesInGroup.forEach(purchase -> purchase.setStatus(successStatus));
+        List<TicketPurchase> updatedPurchases = ticketPurchaseRepository.saveAll(purchasesInGroup);
+
+        log.info("Processed successful payment for transaction group {}", updatedPurchases.get(0).getTransactionId());
+
+        try {
+            sendConfirmationEmailWithAllTickets(updatedPurchases);
+        } catch (Exception e) {
+            log.error("CRITICAL: Transaction {} confirmed but failed to send email. Manual action required.",
+                    updatedPurchases.get(0).getTransactionId(), e);
+        }
 
     }
 
-    private void processFailedPaymentInternal(TicketPurchase purchase, String failureReason, StatusCode failedStatus) {
-        purchase.setStatus(failedStatus);
+    private void processFailedPaymentInternal(List<TicketPurchase> purchasesInGroup) {
+        StatusCode failedStatus = statusCodeRepository.findByEntityTypeAndStatus("TICKET_PURCHASE", "FAILED")
+                .orElseThrow(() -> new IllegalStateException("FAILED status not configured."));
 
-        ticketPurchaseRepository.save(purchase);
-        log.warn("Processed failed payment for purchase {}. Reason: {}", purchase.getId(), failureReason);
+        purchasesInGroup.forEach(purchase -> {
+            purchase.setStatus(failedStatus);
 
-        Ticket ticket = purchase.getTicket();
-        ticket.setAvailableQuantity(ticket.getAvailableQuantity() + purchase.getQuantity());
-        ticketRepository.save(ticket);
-        log.info("Returned {} tickets for failed purchase {} on ticket {}", purchase.getQuantity(), purchase.getId(),
-                ticket.getId());
+            // Hoàn trả lại số lượng vé đã tạm giữ
+            Ticket ticket = purchase.getTicket();
+            ticket.setAvailableQuantity(ticket.getAvailableQuantity() + purchase.getQuantity());
+            // Không cần save ticket ở đây, transaction sẽ quản lý
+            log.info("Returned {} tickets for failed purchase {} on ticket {}",
+                    purchase.getQuantity(), purchase.getId(), ticket.getId());
+        });
+
+        ticketPurchaseRepository.saveAll(purchasesInGroup);
+        log.warn("Processed failed payment for transaction group {}", purchasesInGroup.get(0).getTransactionId());
     }
 
     @Override
@@ -333,17 +377,86 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
     }
 
     @Override
-    public TicketPurchaseDTO confirmPurchase(UUID purchaseId) throws ResourceNotFoundException {
-        TicketPurchase ticketPurchase = ticketPurchaseRepository.findById(purchaseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Purchase not found: " + purchaseId));
+    @Transactional
+    public List<TicketPurchaseDTO> confirmPurchaseByGroup(String transactionId) throws ResourceNotFoundException {
+        List<TicketPurchase> purchasesInGroup = ticketPurchaseRepository.findByTransactionId(transactionId);
+        if (purchasesInGroup.isEmpty()) {
+            throw new ResourceNotFoundException("Purchase group not found with tracsactionId: " + transactionId);
+        }
+
+        boolean allSuccess = purchasesInGroup.stream()
+                .allMatch(p -> "SUCCESS".equals(p.getStatus().getStatus()));
+        if (allSuccess) {
+            log.warn("All purchases in transaction group {} already confirmed.", transactionId);
+            return purchasesInGroup.stream().map(ticketPurchaseMapper::toDTO).collect(Collectors.toList());
+        }
+
         StatusCode successStatus = statusCodeRepository.findByEntityTypeAndStatus("TICKET_PURCHASE", "SUCCESS")
                 .orElseThrow(() -> new ResourceNotFoundException("SUCCESS status not configured"));
 
-        ticketPurchase.setStatus(successStatus);
-        TicketPurchase updated = ticketPurchaseRepository.save(ticketPurchase);
+        purchasesInGroup.forEach(purchase -> purchase.setStatus(successStatus));
 
-        log.info("Purchase {} confirmed via skip-payment", updated);
-        return ticketPurchaseMapper.toDTO(updated);
+        List<TicketPurchase> updatedPurchases = ticketPurchaseRepository.saveAll(purchasesInGroup);
+        log.info("Updated status to SUCCESS for {} purchases in transaction group {}", updatedPurchases.size(),
+                transactionId);
+
+        // Generate QR code for confirmed purchase
+        try {
+            sendConfirmationEmailWithAllTickets(updatedPurchases);
+        } catch (Exception e) {
+            log.error("CRITICAL: Transaction {} confirmed but failed to send email. Manual action required.",
+                    transactionId, e);
+        }
+
+        log.info("Successfully confirmed transaction group {}", transactionId);
+        return updatedPurchases.stream().map(ticketPurchaseMapper::toDTO).collect(Collectors.toList());
+    }
+
+    private void sendConfirmationEmailWithAllTickets(List<TicketPurchase> confirmedPurchases) {
+
+        if (confirmedPurchases == null || confirmedPurchases.isEmpty()) {
+            return;
+        }
+
+        User user = confirmedPurchases.get(0).getUser();
+        String transactionId = confirmedPurchases.get(0).getTransactionId();
+
+        // Chuẩn bị dữ liệu cho email
+        List<Map<String, Object>> ticketsDataForEmail = new ArrayList<>();
+        Map<String, byte[]> qrCodeImages = new HashMap<>();
+
+        for (TicketPurchase purchase : confirmedPurchases) {
+            String cid = "qrcode_" + purchase.getId().toString();
+            byte[] qrCodeBytes = qrCodeService.genarateQrCodeForPurchase(purchase.getId());
+
+            Map<String, Object> ticketInfo = new HashMap<>();
+            ticketInfo.put("purchaseId", purchase.getId());
+            ticketInfo.put("eventName", purchase.getTicket().getEvent().getTitle());
+            ticketInfo.put("eventStartDate", purchase.getTicket().getEvent().getStartDate());
+            ticketInfo.put("eventEndDate", purchase.getTicket().getEvent().getEndDate());
+            ticketInfo.put("ticketType", purchase.getTicket().getTicketType());
+            ticketInfo.put("quantity", purchase.getQuantity());
+            ticketInfo.put("qrImageCid", cid);
+
+            ticketsDataForEmail.add(ticketInfo);
+            qrCodeImages.put(cid, qrCodeBytes);
+        }
+
+        emailService.sendGroupTicketConfirmation(user.getEmail(), user.getFullName(), transactionId,
+                ticketsDataForEmail, qrCodeImages);
+
+    }
+
+    @Override
+    public Optional<TicketPurchaseDetailDTO> getTicketPurchaseDetailById(UUID id) {
+        return ticketPurchaseRepository.findById(id)
+                .map(ticketPurchaseMapper::toDetailDTO);
+    }
+
+    @Override
+    public Page<TicketPurchaseDetailDTO> getTicketPurchaseDetailsByUserId(UUID userId, Pageable pageable) {
+        return ticketPurchaseRepository.findByUserId(userId, pageable)
+                .map(ticketPurchaseMapper::toDetailDTO);
     }
 
 }

@@ -1,6 +1,8 @@
 package io.event.ems.service.impl;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -65,24 +67,34 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
-    public void sendQrCode(String toMail, String fullName, byte[] qrCodeImage) {
+    public void sendGroupTicketConfirmation(String toMail, String fullName, String transactionId,
+            List<Map<String, Object>> tickets, Map<String, byte[]> inlineQrImages) {
         log.info("Attempting to send QR Code email to {}", toMail);
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message);
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             Context context = new Context();
             context.setVariable("name", fullName);
-            context.setVariable("qrImageCid", "qrImage");
+            context.setVariable("transactionId", transactionId);
+            context.setVariable("tickets", tickets);
 
-            String html = templateEngine.process("email-qr-code", context);
+            String html = templateEngine.process("group-ticket-confirmation", context);
 
             helper.setTo(toMail);
-            helper.setSubject("Vé tham gia sự kiện của bạn");
+            helper.setSubject("Xác nhận đặt vé thành công - Giao dịch " + transactionId);
             helper.setText(html, true);
-            helper.addInline("qrImage", new ByteArrayResource(qrCodeImage), "image/png");
+
+            if (inlineQrImages != null) {
+                for (Map.Entry<String, byte[]> entry : inlineQrImages.entrySet()) {
+                    String cid = entry.getKey();
+                    byte[] qrCodeImages = entry.getValue();
+                    helper.addInline(cid, new ByteArrayResource(qrCodeImages), "image/png");
+                }
+            }
 
             mailSender.send(message);
+            log.info("Successfully sent group ticket confirmation to {}", toMail);
         } catch (MessagingException e) {
             throw new RuntimeException("Không thể gửi email với mã QR", e);
         }

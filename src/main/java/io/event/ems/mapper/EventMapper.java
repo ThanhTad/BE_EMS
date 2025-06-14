@@ -5,6 +5,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
+import io.event.ems.dto.EventInfoDTO;
 import io.event.ems.dto.EventRequestDTO;
 import io.event.ems.dto.EventResponseDTO;
 import io.event.ems.model.Event;
@@ -30,5 +31,7 @@ public interface EventMapper {
     @Mapping(target = "categories", ignore = true)
     @Mapping(target = "currentParticipants", ignore = true)
     void updateEventFromDTO(EventRequestDTO dto, @MappingTarget Event entity);
+
+    EventInfoDTO toEventInfoDTO(Event event);
 
 }

@@ -523,7 +523,6 @@ public class AuthServiceImpl implements AuthService {
                         user.getEmail());
                 throw new AuthException("Invalid or missing challenge token.");
             }
-            challengeTokenService.generateChallengerToken(user.getEmail());
         }
 
         try {
