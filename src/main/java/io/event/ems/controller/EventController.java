@@ -1,22 +1,13 @@
 package io.event.ems.controller;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import io.event.ems.dto.ApiResponse;
-import io.event.ems.dto.EventRequestDTO;
+import io.event.ems.dto.EventCreationDTO;
 import io.event.ems.dto.EventResponseDTO;
 import io.event.ems.exception.ResourceNotFoundException;
 import io.event.ems.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-
-import java.time.LocalDateTime;
-import java.util.Optional;
-import java.util.UUID;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -24,12 +15,11 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/events")
@@ -41,22 +31,31 @@ public class EventController {
 
     @PostMapping
     @Operation(summary = "Create a new event", description = "Creates a new event and returns the created event.")
-    public ResponseEntity<ApiResponse<EventResponseDTO>> createEvent(@RequestBody EventRequestDTO eventRequestDTO) {
-        EventResponseDTO createEvent = eventService.createEvent(eventRequestDTO);
+    public ResponseEntity<ApiResponse<EventResponseDTO>> createEvent(@RequestBody EventCreationDTO eventCreationDTO) {
+        EventResponseDTO createEvent = eventService.createEvent(eventCreationDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(createEvent));
     }
 
     @GetMapping
     @Operation(summary = "Get all events", description = "Retrieves all event with pagination support.")
     public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getAllEvents(
-            @PageableDefault(size = 6) Pageable pageable) {
+            @PageableDefault(size = 6, sort = "startDate") Pageable pageable) {
 
         Page<EventResponseDTO> events = eventService.getAllEvents(pageable);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
+    @GetMapping("/public")
+    @Operation(summary = "Get all public events", description = "Retrieves all public events with pagination support.")
+    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getPublicEvents(
+            @PageableDefault(size = 6) Pageable pageable) {
+
+        Page<EventResponseDTO> events = eventService.getPublicEvents(pageable);
+        return ResponseEntity.ok(ApiResponse.success(events));
+    }
+
     @GetMapping("/{id}")
-    @Operation(summary = "Get event by Id", description = "Retrieves an eventby its Id.")
+    @Operation(summary = "Get event by Id", description = "Retrieves an event by its Id.")
     public ResponseEntity<ApiResponse<EventResponseDTO>> getEventById(@PathVariable UUID id)
             throws ResourceNotFoundException {
         Optional<EventResponseDTO> event = eventService.getEventById(id);
@@ -65,19 +64,63 @@ public class EventController {
                         HttpStatus.NOT_FOUND));
     }
 
+    @GetMapping("/slug/{slug}")
+    @Operation(summary = "Get event by slug", description = "Retrieves a single event by its unique slug.")
+    public ResponseEntity<ApiResponse<EventResponseDTO>> getEventBySlug(@PathVariable String slug) {
+        Optional<EventResponseDTO> event = eventService.getEventBySlug(slug);
+        return event.map(dto -> new ResponseEntity<>(ApiResponse.success(dto), HttpStatus.OK))
+                .orElse(new ResponseEntity<>(ApiResponse.error(HttpStatus.NOT_FOUND, "Event not found with slug: " + slug),
+                        HttpStatus.NOT_FOUND));
+    }
+
+
     @GetMapping("/search")
-    @Operation(summary = "Search events", description = "Searches events by keyword with pagination support.")
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> searchEvents(
+    @Operation(summary = "Advanced event search with filters", description = "Searches events with multiple optional filters.")
+    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> searchEventsWithFilters(
             @RequestParam(required = false) String keyword,
-            @PageableDefault(size = 6) Pageable pageable) {
-        Page<EventResponseDTO> events = eventService.searchEvents(keyword, pageable);
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) Integer statusId,
+            @RequestParam(required = false) Boolean isPublic,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE_TIME) LocalDateTime endDate,
+            @PageableDefault(size = 6, sort = "startDate") Pageable pageable
+    ) {
+        Page<EventResponseDTO> events = eventService.searchEventsWithFilters(
+                keyword, categoryId, statusId, isPublic, startDate, endDate, pageable);
         return ResponseEntity.ok(ApiResponse.success(events));
+    }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> findEvents(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) UUID creatorId,
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) Integer statusId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            Pageable pageable
+    ) {
+        Page<EventResponseDTO> results;
+        if (keyword != null) {
+            results = eventService.searchEvents(keyword, pageable);
+        } else if (creatorId != null) {
+            results = eventService.getEventByCreatorId(creatorId, pageable);
+        } else if (categoryId != null) {
+            results = eventService.findByCategories_Id(categoryId, pageable);
+        } else if (statusId != null) {
+            results = eventService.getEventByStatusId(statusId, pageable);
+        } else if (startDate != null && endDate != null) {
+            results = eventService.getEventByStartDateBetween(startDate, endDate, pageable);
+        } else {
+            results = eventService.getAllEvents(pageable);
+        }
+        return ResponseEntity.ok(ApiResponse.success(results));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update event", description = "Updates an existing event by its Id")
     public ResponseEntity<ApiResponse<EventResponseDTO>> updateEvent(@PathVariable UUID id,
-            @RequestBody EventRequestDTO eventRequestDTO) throws ResourceNotFoundException {
+                                                                     @RequestBody EventCreationDTO eventRequestDTO) throws ResourceNotFoundException {
 
         EventResponseDTO updatedEvent = eventService.updateEvent(id, eventRequestDTO);
         return ResponseEntity.ok(ApiResponse.success(updatedEvent));

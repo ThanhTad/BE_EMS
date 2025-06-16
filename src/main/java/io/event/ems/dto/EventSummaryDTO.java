@@ -1,17 +1,17 @@
 package io.event.ems.dto;
 
+import lombok.Data;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import lombok.Data;
-
 @Data
-public class EventInfoDTO {
+public class EventSummaryDTO {
 
     private UUID id;
     private String title;
-    private String coverImageUrl;
+    private String slug;
     private LocalDateTime startDate;
-    private String location;
-
+    private String venueName;
+    private String coverImageUrl;
 }

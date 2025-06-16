@@ -1,24 +1,19 @@
 package io.event.ems.dto;
 
-import java.time.LocalDateTime;
-import java.util.Set;
-import java.util.UUID;
-
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.FutureOrPresent;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
+import io.event.ems.model.TicketSelectionModeEnum;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.UUID;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class EventRequestDTO {
+public class EventCreationDTO {
 
     @NotBlank(message = "Title cannot be blank")
     @Size(max = 255, message = "Title must not exceed 255 characters")
@@ -34,10 +29,8 @@ public class EventRequestDTO {
     @Future(message = "End date must be in the future")
     private LocalDateTime endDate;
 
-    @Size(max = 255, message = "Location must not exceed 255 characters")
-    private String location;
-
-    private String address;
+    @NotNull(message = "Venue ID cannot be null")
+    private UUID venueId;
 
     @NotEmpty(message = "Phải chọn ít nhất 1 category")
     private Set<@NotNull UUID> categoryIds;
@@ -45,14 +38,13 @@ public class EventRequestDTO {
     @NotNull(message = "Creator ID cannot be null")
     private UUID creatorId;
 
-    @Positive(message = "Max participants must be a positive number")
-    private Integer maxParticipants;
+    private TicketSelectionModeEnum ticketSelectionMode;
+    private UUID seatMapId;
 
-    private LocalDateTime registrationStartDate;
-    private LocalDateTime registrationEndDate;
-    private Boolean isPublic = true;
+    @NotNull(message = "Status ID cannot be null")
+    private Integer statusId;
+    
+    private Boolean isPublic;
     private String coverImageUrl;
-    private Double latitude;
-    private Double longitude;
 
 }

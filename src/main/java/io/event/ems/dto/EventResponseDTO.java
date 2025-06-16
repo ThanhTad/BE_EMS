@@ -1,13 +1,13 @@
 package io.event.ems.dto;
 
-import java.time.LocalDateTime;
-import java.util.Set;
-import java.util.UUID;
-
-import io.event.ems.model.StatusCode;
+import io.event.ems.model.TicketSelectionModeEnum;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -16,22 +16,19 @@ public class EventResponseDTO {
 
     private UUID id;
     private String title;
+    private String slug;
     private String description;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
-    private String location;
-    private String address;
-    private Set<CategoryDTO> categories;
-    private UserResponseDTO creator;
-    private Integer maxParticipants;
-    private Integer currentParticipants;
-    private StatusCode status;
-    private LocalDateTime createdAt;
-    private LocalDateTime registrationStartDate;
-    private LocalDateTime registrationEndDate;
+    private VenueDTO venue; // Trả về DTO của Venue
+    private Set<CategoryDTO> categories; // Trả về DTO của Category
+    private UserSummaryDTO creator; // Trả về DTO tóm tắt của User
+    private TicketSelectionModeEnum ticketSelectionMode;
+    private SeatMapSummaryDTO seatMap; // Trả về DTO tóm tắt của SeatMap
+    private StatusCodeDTO status; // Trả về DTO của StatusCode
     private Boolean isPublic;
     private String coverImageUrl;
-    private Double latitude;
-    private Double longitude;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
 }
