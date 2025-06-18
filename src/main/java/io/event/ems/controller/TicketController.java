@@ -1,32 +1,25 @@
 package io.event.ems.controller;
 
-import java.util.Optional;
-import java.util.UUID;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
 import io.event.ems.dto.ApiResponse;
-import io.event.ems.dto.TicketDTO;
+import io.event.ems.dto.TicketRequestDTO;
+import io.event.ems.dto.TicketResponseDTO;
 import io.event.ems.exception.ResourceNotFoundException;
 import io.event.ems.service.impl.TicketServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/tickets")
+@RequestMapping("/api/v1/events/{eventId}/tickets")
 @RequiredArgsConstructor
 @Tag(name = "Ticket", description = "Ticket management APIs")
 public class TicketController {
@@ -34,58 +27,39 @@ public class TicketController {
     private final TicketServiceImpl ticketServiceImpl;
 
     @GetMapping()
-    @Operation(summary = "Get all tickets", description = "Retrieves all tickets with pagination support.")
-    public ResponseEntity<ApiResponse<Page<TicketDTO>>> getAllTickets(@PageableDefault(size = 20) Pageable pageable){
-        Page<TicketDTO> tickets = ticketServiceImpl.getAllTicket(pageable);
+    @Operation(summary = "Get tickets for event", description = "Retrieves tickets for event with pagination support.")
+    public ResponseEntity<ApiResponse<Page<TicketResponseDTO>>> getTicketsForEvent(@PathVariable UUID eventId, @PageableDefault(size = 6) Pageable pageable) {
+        Page<TicketResponseDTO> tickets = ticketServiceImpl.getTicketsForEvent(eventId, pageable);
         return ResponseEntity.ok(ApiResponse.success(tickets));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{ticketId}")
     @Operation(summary = "Get ticket by ID", description = "Retrieves a ticket by its ID.")
-    public ResponseEntity<ApiResponse<TicketDTO>> getTicketById(@PathVariable UUID id) throws ResourceNotFoundException{
-        Optional<TicketDTO> ticket = ticketServiceImpl.getTicketById(id);
-        return ResponseEntity.ok(ApiResponse.success(ticket.orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id))));
+    public ResponseEntity<ApiResponse<TicketResponseDTO>> getTicketById(@PathVariable UUID eventId,
+                                                                        @PathVariable UUID ticketId) throws ResourceNotFoundException {
+        Optional<TicketResponseDTO> ticket = ticketServiceImpl.getTicketById(eventId, ticketId);
+        return ResponseEntity.ok(ApiResponse.success(ticket.orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId + " for event id: " + eventId + "."))));
     }
 
     @PostMapping
     @Operation(summary = "Create a new ticket", description = "Creates a new ticket and returns the created ticket.")
-    public ResponseEntity<ApiResponse<TicketDTO>> createTicket(@RequestBody TicketDTO ticketDTO){
-        TicketDTO createdTicket = ticketServiceImpl.createTicket(ticketDTO);
+    public ResponseEntity<ApiResponse<TicketResponseDTO>> createTicketForEvent(@PathVariable UUID eventId, @RequestBody TicketRequestDTO ticketRequestDTO) {
+        TicketResponseDTO createdTicket = ticketServiceImpl.createTicketForEvent(eventId, ticketRequestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(createdTicket));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{ticketId}")
     @Operation(summary = "Update ticket", description = "Updates an existing ticket by its ID.")
-    public ResponseEntity<ApiResponse<TicketDTO>> updateTicket(@PathVariable UUID id, @RequestBody TicketDTO ticketDTO){
-        TicketDTO updatedTicket = ticketServiceImpl.updateTicket(id, ticketDTO);
+    public ResponseEntity<ApiResponse<TicketResponseDTO>> updateTicket(@PathVariable UUID eventId,
+                                                                       @PathVariable UUID ticketId, @RequestBody TicketRequestDTO ticketRequestDTO) {
+        TicketResponseDTO updatedTicket = ticketServiceImpl.updateTicket(eventId, ticketId, ticketRequestDTO);
         return ResponseEntity.ok(ApiResponse.success(updatedTicket));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{ticketId}")
     @Operation(summary = "Delete ticket", description = "Deletes a ticket by its ID.")
-    public ResponseEntity<ApiResponse<Void>> deleteTicket(@PathVariable UUID id){
-        ticketServiceImpl.deleteTicket(id);
+    public ResponseEntity<ApiResponse<Void>> deleteTicket(@PathVariable UUID eventId, @PathVariable UUID ticketId) {
+        ticketServiceImpl.deleteTicket(eventId, ticketId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
-
-    @GetMapping("/event/{eventId}")
-    @Operation(summary = "Get tickets by event ID", description = "Retrieves tickets by event ID with pagination support.")
-    public ResponseEntity<ApiResponse<Page<TicketDTO>>> getTicketByEventId(@PathVariable UUID eventId, 
-    @PageableDefault(size = 20) Pageable pageable){
-
-        Page<TicketDTO> tickets = ticketServiceImpl.getTicketByEventId(eventId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(tickets));
-
-    }
-
-    @GetMapping("/status/{statusId}")
-    @Operation(summary = "Get tickets by status ID", description = "Retrieves tickets by status ID with pagination support.")
-    public ResponseEntity<ApiResponse<Page<TicketDTO>>> getTicketByStatusId(@PathVariable Integer statusId, 
-    @PageableDefault(size = 20) Pageable pageable){
-
-        Page<TicketDTO> tickets = ticketServiceImpl.getTicketByStatusId(statusId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(tickets));
-
-    }
-
 }

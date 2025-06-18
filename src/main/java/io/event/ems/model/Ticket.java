@@ -1,20 +1,15 @@
 package io.event.ems.model;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-import org.hibernate.annotations.UuidGenerator;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.UuidGenerator;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Data
@@ -33,15 +28,23 @@ public class Ticket {
     private Event event;
 
     @Column(nullable = false)
-    private String ticketType;
+    private String name;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
-    @Column(nullable = false)
-    private Integer totalQuantity;
+    @Column(columnDefinition = "TEXT")
+    private String description;
 
+    private Integer maxPerPurchase = 5;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "applies_to_section_id")
+    private SeatSection appliesToSection;
+
+    private Integer totalQuantity;
     private Integer availableQuantity;
+
     private LocalDateTime saleStartDate;
     private LocalDateTime saleEndDate;
 
@@ -49,9 +52,6 @@ public class Ticket {
     @JoinColumn(name = "status_id")
     private StatusCode status;
 
-    private Integer maxPerUser = 5;
-    private String description;
-    private BigDecimal earlyBirdDiscount;
-    private Boolean isFree = false;
-
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }

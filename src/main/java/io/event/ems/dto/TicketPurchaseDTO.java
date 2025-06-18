@@ -1,38 +1,27 @@
 package io.event.ems.dto;
 
+import lombok.Data;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
-
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
-import lombok.Data;
 
 @Data
 public class TicketPurchaseDTO {
 
     private UUID id;
-
-    @NotNull(message = "User Id cannot be null")
+    private UUID eventId;
+    private String eventTitle;
     private UUID userId;
-
-    
-    @NotNull(message = "Ticket ID cannot be null")
-    private UUID ticketId;
-
-    @NotNull(message = "Quantity cannot be null")
-    @Min(value = 1, message = "Quantity must be at least 1")
-    private Integer quantity;
-
     private LocalDateTime purchaseDate;
-
+    private BigDecimal subTotal;
+    private BigDecimal serviceFee;
     private BigDecimal totalPrice;
-
-    @NotNull(message = "Status ID cannot be null")
-    private Integer statusId;
-
+    private String currency;
+    private String status;
     private String paymentMethod;
-
     private String transactionId;
+    private List<PurchasedTicketDetailDTO> purchasedTickets;
 
 }

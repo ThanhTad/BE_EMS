@@ -1,105 +1,128 @@
 package io.event.ems.service.impl;
 
-import java.util.Optional;
-import java.util.UUID;
-
+import io.event.ems.dto.TicketRequestDTO;
+import io.event.ems.dto.TicketResponseDTO;
+import io.event.ems.exception.ResourceNotFoundException;
+import io.event.ems.mapper.TicketMapper;
+import io.event.ems.model.Event;
+import io.event.ems.model.SeatSection;
+import io.event.ems.model.StatusCode;
+import io.event.ems.model.Ticket;
+import io.event.ems.repository.EventRepository;
+import io.event.ems.repository.SeatSectionRepository;
+import io.event.ems.repository.StatusCodeRepository;
+import io.event.ems.repository.TicketRepository;
+import io.event.ems.service.TicketService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import io.event.ems.dto.TicketDTO;
-import io.event.ems.exception.ResourceNotFoundException;
-import io.event.ems.mapper.TicketMapper;
-import io.event.ems.model.Event;
-import io.event.ems.model.StatusCode;
-import io.event.ems.model.Ticket;
-import io.event.ems.repository.EventRepository;
-import io.event.ems.repository.StatusCodeRepository;
-import io.event.ems.repository.TicketRepository;
-import io.event.ems.service.TicketService;
-import lombok.RequiredArgsConstructor;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class TicketServiceImpl implements TicketService {
-    
+
     private final TicketRepository ticketRepository;
     private final EventRepository eventRepository;
     private final StatusCodeRepository statusCodeRepository;
+    private final SeatSectionRepository seatSectionRepository;
     private final TicketMapper ticketMapper;
-    
-    @Override
-    public Page<TicketDTO> getAllTicket(Pageable pageable) {
-       return ticketRepository.findAll(pageable)
-                    .map(ticketMapper::toDTO);
-    }
 
     @Override
-    public Optional<TicketDTO> getTicketById(UUID id) throws ResourceNotFoundException {
-        return ticketRepository.findById(id)
-                    .map(ticketMapper::toDTO);
-    }
+    public TicketResponseDTO createTicketForEvent(UUID eventId, TicketRequestDTO ticketRequestDTO) {
+        log.info("Creating ticket for event: {}", eventId);
 
-    @Override
-    public TicketDTO createTicket(TicketDTO ticketDTO) {
-        
-        Event event = eventRepository.findById(ticketDTO.getEventId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + ticketDTO.getEventId()));
-        StatusCode statusCode = statusCodeRepository.findById(ticketDTO.getStatusId())
-                                    .orElseThrow(() -> new ResourceNotFoundException("Status not found with id: " + ticketDTO.getStatusId()));
-        Ticket newTicket = ticketMapper.toEntity(ticketDTO);
-        newTicket.setEvent(event);
-        newTicket.setStatus(statusCode);
-        Ticket saveTicket = ticketRepository.save(newTicket);
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+
+        Ticket ticket = ticketMapper.toEntity(ticketRequestDTO);
+        ticket.setEvent(event);
+
+        // Validate và set section nếu có
+        if (ticketRequestDTO.getAppliesToSectionId() != null) {
+            SeatSection seatSection = seatSectionRepository.findById(ticketRequestDTO.getAppliesToSectionId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Section not found with id: " + ticketRequestDTO.getAppliesToSectionId()));
+            ticket.setAppliesToSection(seatSection);
+        }
+
+        StatusCode statusCode = statusCodeRepository.findById(ticketRequestDTO.getStatusId())
+                .orElseThrow(() -> new ResourceNotFoundException("Status not found with id: " + ticketRequestDTO.getStatusId()));
+        ticket.setStatus(statusCode);
+
+        if (ticketRequestDTO.getTotalQuantity() != null) {
+            ticket.setAvailableQuantity(ticketRequestDTO.getTotalQuantity());
+        }
+
+        Ticket saveTicket = ticketRepository.save(ticket);
         return ticketMapper.toDTO(saveTicket);
 
     }
 
     @Override
-    public TicketDTO updateTicket(UUID id, TicketDTO ticketDTO) throws ResourceNotFoundException {
+    @Transactional(readOnly = true)
+    public Page<TicketResponseDTO> getTicketsForEvent(UUID eventId, Pageable pageable) {
+        log.info("Getting tickets for event: {}", eventId);
+        return ticketRepository.findByEventId(eventId, pageable)
+                .map(ticketMapper::toDTO);
+    }
 
-        Ticket ticket = ticketRepository.findById(id)
-                            .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
-       
-        if(ticketDTO.getEventId() != null){
-            Event event = eventRepository.findById(ticketDTO.getEventId())
-                            .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " +ticketDTO.getEventId()));
-            ticket.setEvent(event);
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TicketResponseDTO> getTicketById(UUID eventId, UUID ticketId) throws ResourceNotFoundException {
+        log.info("Getting ticket for event: {} and ticketId: {}", eventId, ticketId);
+        if (!eventRepository.existsById(eventId)) {
+            throw new ResourceNotFoundException("Event not found with id: " + eventId);
+        }
+        return ticketRepository.findByIdAndEventId(ticketId, eventId)
+                .map(ticketMapper::toDTO);
+    }
+
+    @Override
+    public TicketResponseDTO updateTicket(UUID eventId, UUID ticketId, TicketRequestDTO ticketRequestDTO) throws ResourceNotFoundException {
+        log.info("Updating ticket for event: {} and ticketId: {}", eventId, ticketId);
+
+        Ticket existingTicket = ticketRepository.findByIdAndEventId(ticketId, eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId + "event id: " + eventId));
+
+        ticketMapper.updateTicketFromDTO(ticketRequestDTO, existingTicket);
+
+        if (ticketRequestDTO.getAppliesToSectionId() != null) {
+            SeatSection seatSection = seatSectionRepository.findById(ticketRequestDTO.getAppliesToSectionId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Section not found with id: " + ticketRequestDTO.getAppliesToSectionId()));
+            existingTicket.setAppliesToSection(seatSection);
         }
 
-        if(ticketDTO.getStatusId() != null){
-            StatusCode statusCode = statusCodeRepository.findById(ticketDTO.getStatusId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Status not found with id: " + ticketDTO.getEventId()));
-            ticket.setStatus(statusCode);
+        if (ticketRequestDTO.getStatusId() != null) {
+            StatusCode statusCode = statusCodeRepository.findById(ticketRequestDTO.getStatusId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Status not found with id: " + ticketRequestDTO.getStatusId()));
+            existingTicket.setStatus(statusCode);
         }
 
-        ticketMapper.updateTicketFromDTO(ticketDTO, ticket);
-        Ticket updatedTicket = ticketRepository.save(ticket);
-
+        Ticket updatedTicket = ticketRepository.save(existingTicket);
         return ticketMapper.toDTO(updatedTicket);
 
     }
 
     @Override
-    public void deleteTicket(UUID id) throws ResourceNotFoundException {
-        if(!ticketRepository.existsById(id)){
-            throw new ResourceNotFoundException("Ticket not found with id: " + id);
+    public void deleteTicket(UUID eventId, UUID ticketId) throws ResourceNotFoundException {
+        log.info("Deleting ticket for event: {} and ticketId: {}", eventId, ticketId);
+        Ticket ticket = ticketRepository.findByIdAndEventId(ticketId, eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId + "event id: " + eventId));
+
+        if (ticket.getTotalQuantity() != null && ticket.getAvailableQuantity() != null) {
+            int soldQuantity = ticket.getTotalQuantity() - ticket.getAvailableQuantity();
+            if (soldQuantity > 0) {
+                throw new IllegalStateException("Cannot delete ticket that has already been sold");
+            }
         }
-        ticketRepository.deleteById(id);
+        ticketRepository.deleteById(ticketId);
     }
-
-    @Override
-    public Page<TicketDTO> getTicketByEventId(UUID eventId, Pageable pageable) {
-        return ticketRepository.findByEventId(eventId, pageable)
-                    .map(ticketMapper::toDTO);
-    }
-
-    @Override
-    public Page<TicketDTO> getTicketByStatusId(Integer statusId, Pageable pageable) {
-       return ticketRepository.findByStatusId(statusId, pageable)
-                    .map(ticketMapper::toDTO);
-    }
-
 }

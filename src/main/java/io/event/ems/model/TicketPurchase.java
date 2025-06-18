@@ -1,24 +1,17 @@
 package io.event.ems.model;
 
+import jakarta.persistence.*;
+import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UuidGenerator;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UuidGenerator;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
-import lombok.Data;
-
 @Entity
 @Data
-@Table(name = "ticket_purchases", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "ticket_id"}))
+@Table(name = "ticket_purchases")
 public class TicketPurchase {
 
     @Id
@@ -26,24 +19,29 @@ public class TicketPurchase {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "ticket_id", nullable = false)
-    private Ticket ticket;
-
-    
-    @Column(nullable = false)
-    private Integer quantity;
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
 
     @Column(nullable = false, updatable = false)
     @CreationTimestamp
     private LocalDateTime purchaseDate;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(precision = 12, scale = 2)
+    private BigDecimal subTotal;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal serviceFee = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalPrice;
+
+    @Column(length = 3, nullable = false)
+    private String currency = "VND";
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "status_id")
