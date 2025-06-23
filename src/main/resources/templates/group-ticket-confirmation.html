@@ -1,133 +1,186 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Vé tham dự sự kiện</title>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác nhận đặt vé thành công</title>
     <style>
-      body {
-        font-family: "Segoe UI", sans-serif;
-        background-color: #f4f4f4;
-        margin: 0;
-        padding: 0;
-      }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
 
-      .container {
-        background-color: #ffffff;
-        max-width: 600px;
-        margin: 30px auto;
-        padding: 30px;
-        border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      }
+        .container {
+            background-color: #ffffff;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
 
-      .header {
-        text-align: center;
-        margin-bottom: 30px;
-      }
+        .header {
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
 
-      .header img {
-        width: 100px;
-        height: auto;
-        margin-bottom: 10px;
-      }
+        .header .title {
+            font-size: 24px;
+            color: #2d3748;
+            font-weight: 600;
+            margin: 0;
+        }
 
-      .title {
-        font-size: 22px;
-        color: #333;
-        font-weight: 600;
-      }
+        .header .subtitle {
+            font-size: 16px;
+            color: #718096;
+            margin-top: 5px;
+        }
 
-      .content {
-        font-size: 16px;
-        color: #555;
-        line-height: 1.6;
-      }
+        .content {
+            font-size: 16px;
+            color: #4a5568;
+            line-height: 1.6;
+        }
 
-      .qr-code {
-        text-align: center;
-        margin: 30px 0;
-      }
+        .highlight {
+            color: #2c5282;
+            font-weight: 700;
+        }
 
-      .footer {
-        text-align: center;
-        color: #aaa;
-        font-size: 14px;
-        margin-top: 30px;
-      }
+        .ticket-wrapper {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px dashed #cbd5e0;
+        }
 
-      .highlight {
-        color: #0b8457;
-        font-weight: 600;
-      }
+        .ticket-header {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+
+        .ticket-info {
+            background-color: #f7fafc;
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+
+        .info-row:not(:last-child) {
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .info-label {
+            font-weight: 500;
+            color: #718096;
+            margin-right: 15px;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: #2d3748;
+            text-align: right;
+        }
+
+        .qr-code-section {
+            text-align: center;
+            margin: 25px 0;
+        }
+
+        .qr-code-section img {
+            width: 200px;
+            height: 200px;
+            border: 5px solid #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .footer {
+            text-align: center;
+            color: #a0aec0;
+            font-size: 12px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
     </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <div class="title">🎫 Xác nhận đặt vé thành công</div>
-        <p class="subtitle" th:text="'Mã giao dịch: ' + ${transactionId}">
-          Mã GD: #123
-        </p>
-      </div>
-
-      <div class="content">
-        <p>
-          Xin chào <span class="highlight" th:text="${name}">Người dùng</span>,
-        </p>
-        <p>
-          Cảm ơn bạn đã đặt vé. Dưới đây là thông tin chi tiết các vé của bạn.
-          Vui lòng trình mã QR tương ứng cho từng vé khi check-in.
-        </p>
-      </div>
-
-      <!-- === LẶP QUA DANH SÁCH VÉ === -->
-      <div th:each="ticket, iterStat : ${tickets}">
-        <div class="ticket-info" style="margin-top: 25px">
-          <h3>📋 Thông tin vé #<span th:text="${iterStat.count}">1</span></h3>
-          <div class="info-row">
-            <span class="info-label">Sự kiện:</span>
-            <span class="info-value" th:text="${ticket.eventName}"
-              >Tên sự kiện</span
-            >
-          </div>
-          <div class="info-row">
-            <span class="info-label">Thời gian:</span>
-            <span
-              class="info-value"
-              th:text="${#temporals.format(ticket.eventDate, 'dd/MM/yyyy HH:mm')}"
-              >01/01/2025 19:00</span
-            >
-          </div>
-          <div class="info-row">
-            <span class="info-label">Loại vé:</span>
-            <span class="info-value" th:text="${ticket.ticketType}">VIP</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Số lượng:</span>
-            <span class="info-value" th:text="${ticket.quantity}">1</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Mã vé:</span>
-            <span class="info-value" th:text="${ticket.purchaseId}"
-              >#12345</span
-            >
-          </div>
-        </div>
-
-        <div class="qr-code">
-          <h3>🔍 Mã QR cho vé #<span th:text="${iterStat.count}">1</span></h3>
-          <!-- Tham chiếu đến CID đã được truyền vào -->
-          <img th:src="'cid:' + ${ticket.qrImageCid}" alt="QR Code" />
-        </div>
-      </div>
-      <div class="content">
-        <p>
-          Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi qua
-          email hoặc hotline.
-        </p>
-        <p>Hẹn gặp lại bạn tại sự kiện!</p>
-      </div>
-      <div class="footer">© 2025 Sự kiện EMS. Mọi quyền được bảo lưu.</div>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <p class="title">🎫 Xác nhận đặt vé thành công</p>
+        <p class="subtitle" th:text="'Mã giao dịch: ' + ${transactionId}">Mã giao dịch: #TXN123456</p>
     </div>
-  </body>
+
+    <div class="content">
+        <p>
+            Xin chào <span class="highlight" th:text="${name}">Khách hàng</span>,
+        </p>
+        <p>
+            Cảm ơn bạn đã đặt vé cho sự kiện của chúng tôi. Dưới đây là thông tin chi tiết các vé của bạn.
+            Vui lòng trình mã QR tương ứng cho từng mục vé khi vào cổng.
+        </p>
+    </div>
+
+    <!-- === LẶP QUA DANH SÁCH VÉ === -->
+    <!-- `ticketDetailsForEmail` được truyền từ Service với tên là "tickets" -->
+    <div class="ticket-wrapper" th:each="ticket, iterStat : ${tickets}">
+
+        <div class="ticket-header" th:text="'Vé #' + ${iterStat.count}">Vé #1</div>
+
+        <div class="ticket-info">
+            <div class="info-row">
+                <span class="info-label">Sự kiện</span>
+                <span class="info-value" th:text="${eventName}">Tên sự kiện</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Loại vé</span>
+                <span class="info-value" th:text="${ticket.name}">Tên loại vé</span>
+            </div>
+            <!-- Hiển thị vị trí chỉ khi là vé có chỗ ngồi -->
+            <div class="info-row" th:if="${ticket.details}">
+                <span class="info-label">Vị trí</span>
+                <span class="info-value" th:text="${ticket.details}">Chi tiết vị trí</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Số lượng</span>
+                <span class="info-value" th:text="${ticket.quantity}">1</span>
+            </div>
+        </div>
+
+        <div class="qr-code-section">
+            <!-- Tham chiếu đến CID đã được truyền vào -->
+            <img th:src="'cid:' + ${ticket.cid}" alt="QR Code"/>
+            <p style="font-size: 12px; color: #718096; margin-top: 5px;">Sử dụng mã này để check-in</p>
+        </div>
+
+    </div>
+    <!-- === KẾT THÚC VÒNG LẶP === -->
+
+    <div class="content" style="border-top: 2px dashed #cbd5e0; padding-top: 20px;">
+        <p>
+            Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với bộ phận hỗ trợ của chúng tôi.
+        </p>
+        <p>Chúc bạn có một trải nghiệm tuyệt vời tại sự kiện!</p>
+    </div>
+
+    <div class="footer">
+        <p>© <span th:text="${#dates.year(#dates.createNow())}">2025</span> Sự kiện EMS. Mọi quyền được bảo lưu.</p>
+    </div>
+</div>
+</body>
 </html>

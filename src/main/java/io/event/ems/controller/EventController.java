@@ -90,33 +90,6 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
-    @GetMapping
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> findEvents(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) UUID creatorId,
-            @RequestParam(required = false) UUID categoryId,
-            @RequestParam(required = false) Integer statusId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            Pageable pageable
-    ) {
-        Page<EventResponseDTO> results;
-        if (keyword != null) {
-            results = eventService.searchEvents(keyword, pageable);
-        } else if (creatorId != null) {
-            results = eventService.getEventByCreatorId(creatorId, pageable);
-        } else if (categoryId != null) {
-            results = eventService.findByCategories_Id(categoryId, pageable);
-        } else if (statusId != null) {
-            results = eventService.getEventByStatusId(statusId, pageable);
-        } else if (startDate != null && endDate != null) {
-            results = eventService.getEventByStartDateBetween(startDate, endDate, pageable);
-        } else {
-            results = eventService.getAllEvents(pageable);
-        }
-        return ResponseEntity.ok(ApiResponse.success(results));
-    }
-
     @PutMapping("/{id}")
     @Operation(summary = "Update event", description = "Updates an existing event by its Id")
     public ResponseEntity<ApiResponse<EventResponseDTO>> updateEvent(@PathVariable UUID id,

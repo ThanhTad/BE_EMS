@@ -1,9 +1,10 @@
 package io.event.ems.service.impl;
 
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
-
+import io.event.ems.service.EmailService;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -13,11 +14,9 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
-import io.event.ems.service.EmailService;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -31,6 +30,7 @@ public class EmailServiceImpl implements EmailService {
     private String fromMail;
 
     private static final String OTP_TEMPLATE_NAME = "email-otp";
+    private static final String GROUP_TICKET_TEMPLATE_NAME = "group-ticket-confirmation";
 
     @Override
     @Async
@@ -46,7 +46,7 @@ public class EmailServiceImpl implements EmailService {
             Context context = new Context();
             context.setVariable("subject", subject);
             context.setVariable("otpCode", otp);
-            context.setVariable("recipientment", toMail);
+            context.setVariable("recipient", toMail);
 
             String htmlBody = templateEngine.process(OTP_TEMPLATE_NAME, context);
 
@@ -67,36 +67,57 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
-    public void sendGroupTicketConfirmation(String toMail, String fullName, String transactionId,
-            List<Map<String, Object>> tickets, Map<String, byte[]> inlineQrImages) {
-        log.info("Attempting to send QR Code email to {}", toMail);
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+    @Async
+    public void sendGroupTicketConfirmation(String toEmail, String fullName, String transactionId, String eventName, List<Map<String, Object>> ticketDetails, Map<String, byte[]> inlineQrImages) {
+        log.info("Attempting to send Group Ticket Confirmation email to {} for transaction {}", toEmail, transactionId);
 
+        try {
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            // Tham số 'true' bật chế độ multipart, cần thiết cho việc đính kèm và nhúng ảnh
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, StandardCharsets.UTF_8.name());
+
+            // =========================================================
+            // === BƯỚC 1: CHUẨN BỊ DỮ LIỆU CHO TEMPLATE (CONTEXT) ===
+            // =========================================================
             Context context = new Context();
             context.setVariable("name", fullName);
             context.setVariable("transactionId", transactionId);
-            context.setVariable("tickets", tickets);
+            context.setVariable("eventName", eventName);
+            context.setVariable("tickets", ticketDetails); // "tickets" là tên biến mà th:each trong template sẽ sử dụng
 
-            String html = templateEngine.process("group-ticket-confirmation", context);
+            // =========================================================
+            // === BƯỚC 2: RENDER TEMPLATE HTML VỚI DỮ LIỆU ĐÃ CÓ ===
+            // =========================================================
+            String htmlBody = templateEngine.process(GROUP_TICKET_TEMPLATE_NAME, context);
 
-            helper.setTo(toMail);
-            helper.setSubject("Xác nhận đặt vé thành công - Giao dịch " + transactionId);
-            helper.setText(html, true);
+            // =========================================================
+            // === BƯỚC 3: THIẾT LẬP THÔNG TIN EMAIL VÀ NHÚNG ẢNH QR ===
+            // =========================================================
+            helper.setTo(toEmail);
+            helper.setSubject("Xác nhận đặt vé thành công - Sự kiện: " + eventName);
+            helper.setText(htmlBody, true); // Tham số 'true' chỉ định nội dung là HTML
+            helper.setFrom(fromMail);
 
-            if (inlineQrImages != null) {
+            // Nhúng các ảnh QR code vào email
+            if (inlineQrImages != null && !inlineQrImages.isEmpty()) {
                 for (Map.Entry<String, byte[]> entry : inlineQrImages.entrySet()) {
                     String cid = entry.getKey();
-                    byte[] qrCodeImages = entry.getValue();
-                    helper.addInline(cid, new ByteArrayResource(qrCodeImages), "image/png");
+                    byte[] qrCodeImageBytes = entry.getValue();
+                    // Thêm ảnh vào email với Content-ID (CID) tương ứng
+                    helper.addInline(cid, new ByteArrayResource(qrCodeImageBytes), "image/png");
                 }
             }
 
-            mailSender.send(message);
-            log.info("Successfully sent group ticket confirmation to {}", toMail);
+            // =========================================================
+            // === BƯỚC 4: GỬI EMAIL ===
+            // =========================================================
+            mailSender.send(mimeMessage);
+            log.info("Successfully sent group ticket confirmation to {} for transaction {}", toEmail, transactionId);
+
         } catch (MessagingException e) {
-            throw new RuntimeException("Không thể gửi email với mã QR", e);
+            log.error("Failed to send email with QR codes to {}: {}", toEmail, e.getMessage());
+            // Trong môi trường production, bạn có thể lưu lại email này vào một hàng đợi để thử gửi lại
+            throw new RuntimeException("Failed to send confirmation email", e);
         }
     }
 
