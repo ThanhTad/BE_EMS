@@ -1,38 +1,7 @@
 package io.event.ems.service.impl;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.UUID;
-
-import org.springframework.mail.MailException;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.DisabledException;
-import org.springframework.security.authentication.LockedException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import io.event.ems.dto.Disable2FARequest;
-import io.event.ems.dto.Enable2FARequest;
-import io.event.ems.dto.LoginRequestDTO;
-import io.event.ems.dto.RegisterRequestDTO;
-import io.event.ems.dto.RequestPasswordResetRequest;
-import io.event.ems.dto.ResendOtpRequest;
-import io.event.ems.dto.ResetPasswordVerificationResponse;
-import io.event.ems.dto.SentOtpRequest;
-import io.event.ems.dto.TokenResponse;
-import io.event.ems.dto.TwoFactorVerificationRequest;
-import io.event.ems.exception.AuthException;
-import io.event.ems.exception.DuplicateEmailException;
-import io.event.ems.exception.DuplicateUsernameException;
-import io.event.ems.exception.OtpException;
-import io.event.ems.exception.ResourceNotFoundException;
+import io.event.ems.dto.*;
+import io.event.ems.exception.*;
 import io.event.ems.mapper.UserMapper;
 import io.event.ems.model.Role;
 import io.event.ems.model.StatusCode;
@@ -53,6 +22,19 @@ import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.mail.MailException;
+import org.springframework.security.authentication.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -101,7 +83,7 @@ public class AuthServiceImpl implements AuthService {
             checkUserStatus(user, STATUS_ACTIVE, "Account is not active or locked");
 
             if (user.getTwoFactorEnabled()) {
-                return handleTwoFactorRequired(user.getEmail(), user.getTwoFactorEnabled(), OTP_TYPE_2FA_LOGIN);
+                return handleTwoFactorRequired(user.getEmail(), OTP_TYPE_2FA_LOGIN);
             }
 
             updateLastLogin(user);
@@ -187,34 +169,29 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    @Transactional
     private void updateLastLogin(User user) {
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
         log.debug("Updated last login for user: {}", user.getUsername());
     }
 
-    private TokenResponse handleTwoFactorRequired(String userEmail, boolean isTwoFactorEnabled, String otpType) {
-        if (isTwoFactorEnabled) {
-            log.info("2FA required for user associated with {}. Sending OTP.", userEmail);
-            try {
-                String challengeToken = challengeTokenService.generateChallengerToken(userEmail);
+    private TokenResponse handleTwoFactorRequired(String userEmail, String otpType) {
+        log.info("2FA required for user associated with {}. Sending OTP.", userEmail);
+        try {
+            String challengeToken = challengeTokenService.generateChallengerToken(userEmail);
 
-                String otp = otpService.generateAndStoreOtp(userEmail, otpType);
-                String subject = getOtpEmailSubject(otpType);
-                emailService.sendOtpEmail(userEmail, subject, otp);
+            String otp = otpService.generateAndStoreOtp(userEmail, otpType);
+            String subject = getOtpEmailSubject(otpType);
+            emailService.sendOtpEmail(userEmail, subject, otp);
 
-                return TokenResponse.builder()
-                        .twoFactorEnabled(true)
-                        .challengeToken(challengeToken)
-                        .build();
-            } catch (OtpException | MailException e) {
-                log.error("Failed to generate or send 2FA OTP for {}: {}", userEmail, e.getMessage());
-                throw new AuthException("Failed to send 2FA code. Please try logging in again.");
-            }
+            return TokenResponse.builder()
+                    .twoFactorEnabled(true)
+                    .challengeToken(challengeToken)
+                    .build();
+        } catch (OtpException | MailException e) {
+            log.error("Failed to generate or send 2FA OTP for {}: {}", userEmail, e.getMessage());
+            throw new AuthException("Failed to send 2FA code. Please try logging in again.");
         }
-        log.warn("handleTwoFactorRequired called but 2FA is not enabled for {}", userEmail);
-        throw new AuthException("Internal server error during login.");
     }
 
     private String getOtpEmailSubject(String otpType) {
@@ -461,7 +438,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenResponse verifyTwoFactorOtp(TwoFactorVerificationRequest request,
-            HttpServletResponse response) {
+                                            HttpServletResponse response) {
         String username = request.getIdentifier();
         String otp = request.getOtp();
         String challengeToken = request.getChallengeToken();
@@ -659,7 +636,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private String generateSecureResetToken() {
-        return UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
+        return UUID.randomUUID() + "-" + System.currentTimeMillis();
     }
 
 }
