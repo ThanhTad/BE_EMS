@@ -1,35 +1,66 @@
 package io.event.ems.repository;
 
+import io.event.ems.dto.SectionAvailabilityDTO;
 import io.event.ems.model.EventSeatStatus;
-import jakarta.persistence.LockModeType;
+import io.event.ems.model.SeatSection;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+@Repository
 public interface EventSeatStatusRepository extends JpaRepository<EventSeatStatus, UUID> {
 
-    List<EventSeatStatus> findByTicketPurchaseId(UUID ticketPurchaseId);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT ess FROM EventSeatStatus ess " +
             "JOIN FETCH ess.seat s " +
-            "JOIN FETCH s.section sc " +
-            "JOIN FETCH ess.ticket t " +
-            "WHERE ess.id IN :ids")
-    List<EventSeatStatus> findAllByIdInWithDetailsAndLock(@Param("ids") List<UUID> ids);
+            "JOIN FETCH s.section sec " +
+            "LEFT JOIN FETCH ess.ticket t " +
+            "WHERE ess.event.id = :eventId AND sec.seatMap.id = :seatMapId")
+    List<EventSeatStatus> findByEventIdAndSeatMapId(@Param("eventId") UUID eventId,
+                                                    @Param("seatMapId") UUID seatMapId);
 
-    // Phương thức mới để cập nhật trạng thái sau khi thanh toán
-    @Modifying
-    @Query("UPDATE EventSeatStatus ess SET ess.status = 'sold', ess.ticketPurchase.id = :purchaseId, ess.ticket.id = :ticketId, ess.priceAtPurchase = :price " +
-            "WHERE ess.seat.id IN :seatIds")
-    int confirmSeatsAsSold(@Param("seatIds") List<UUID> seatIds,
-                           @Param("purchaseId") UUID purchaseId,
-                           @Param("ticketId") UUID ticketId,
-                           @Param("price") BigDecimal price);
+    @Query("SELECT COUNT(ess) FROM EventSeatStatus ess " +
+            "WHERE ess.event.id = :eventId AND ess.seat.section.id = :sectionId " +
+            "AND ess.status = 'available'")
+    int countAvailableSeatsInSection(@Param("eventId") UUID eventId,
+                                     @Param("sectionId") UUID sectionId);
+
+    @Query("SELECT ess FROM EventSeatStatus ess " +
+            "WHERE ess.event.id = :eventId AND ess.seat.id IN :seatIds")
+    List<EventSeatStatus> findAllByEventIdAndSeatIdIn(@Param("eventId") UUID eventId,
+                                                      @Param("seatIds") List<UUID> seatIds);
+
+    @Query("SELECT ess FROM EventSeatStatus ess " +
+            "JOIN FETCH ess.ticket t " +
+            "JOIN FETCH ess.seat s " +
+            "JOIN FETCH s.section sec " +
+            "WHERE ess.ticketPurchase.id = :purchaseId")
+    List<EventSeatStatus> findByTicketPurchaseId(@Param("purchaseId") UUID purchaseId);
+
+    @Query("SELECT DISTINCT s.section FROM Seat s WHERE s.id IN :seatIds")
+    List<SeatSection> findSectionsForSeats(@Param("seatIds") List<UUID> seatIds);
+
+    @Query("SELECT ess FROM EventSeatStatus ess JOIN FETCH ess.ticket t " +
+            "WHERE ess.event.id = :eventId AND ess.seat.id IN :seatIds")
+    List<EventSeatStatus> findAllByEventIdAndSeatIdInWithTicket(
+            @Param("eventId") UUID eventId,
+            @Param("seatIds") List<UUID> seatIds
+    );
+
+    long countAvailableSeatsByEventId(UUID eventId);
+
+    @Query("SELECT new io.event.ems.dto.SectionAvailabilityDTO(s.seat.section.id, COUNT(s.id)) " +
+            "FROM EventSeatStatus s " +
+            "WHERE s.event.id = :eventId " +
+            "AND s.seat.section.id IN :sectionIds " +
+            "AND s.status = 'available' " +
+            "GROUP BY s.seat.section.id")
+    List<SectionAvailabilityDTO> countAvailableSeatsInSections(
+            @Param("eventId") UUID eventId,
+            @Param("sectionIds") List<UUID> sectionIds
+    );
+
 }

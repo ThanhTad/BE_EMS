@@ -5,10 +5,9 @@ import lombok.Data;
 import java.util.UUID;
 
 @Data
-public class VenueDTO {
+public class EventCreatorDTO {
 
     private UUID id;
-    private String name;
-    private String address;
+    private String fullName;
+    private String avatarUrl;
 }
-

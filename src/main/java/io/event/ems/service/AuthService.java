@@ -1,16 +1,9 @@
 package io.event.ems.service;
 
-import io.event.ems.dto.Disable2FARequest;
-import io.event.ems.dto.Enable2FARequest;
-import io.event.ems.dto.LoginRequestDTO;
-import io.event.ems.dto.RegisterRequestDTO;
-import io.event.ems.dto.RequestPasswordResetRequest;
-import io.event.ems.dto.ResendOtpRequest;
-import io.event.ems.dto.ResetPasswordVerificationResponse;
-import io.event.ems.dto.SentOtpRequest;
-import io.event.ems.dto.TokenResponse;
-import io.event.ems.dto.TwoFactorVerificationRequest;
+import io.event.ems.dto.*;
 import jakarta.servlet.http.HttpServletResponse;
+
+import java.util.UUID;
 
 public interface AuthService {
 
@@ -35,13 +28,13 @@ public interface AuthService {
     TokenResponse sendOtpToDisable2FA(SentOtpRequest request);
 
     TokenResponse verifyTwoFactorOtp(TwoFactorVerificationRequest request,
-            HttpServletResponse response);
+                                     HttpServletResponse response);
 
     void resendOtp(ResendOtpRequest request);
 
     void register(RegisterRequestDTO request);
 
-    TokenResponse getUserInfo(String accessToken);
+    UserResponseDTO getUserInfo(UUID userId);
 
     void verifyEmailOtp(String email, String otp);
 

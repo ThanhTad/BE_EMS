@@ -15,6 +15,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -34,6 +35,21 @@ public class EventController {
     public ResponseEntity<ApiResponse<EventResponseDTO>> createEvent(@RequestBody EventCreationDTO eventCreationDTO) {
         EventResponseDTO createEvent = eventService.createEvent(eventCreationDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(createEvent));
+    }
+
+    @PatchMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<EventResponseDTO>> approveEvent(@PathVariable UUID id) {
+        EventResponseDTO approvedEvent = eventService.approveEvent(id);
+        return ResponseEntity.ok(ApiResponse.success(approvedEvent));
+    }
+
+    @PatchMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<EventResponseDTO>> rejectEvent(
+            @PathVariable UUID id) {
+        EventResponseDTO rejectedEvent = eventService.rejectEvent(id);
+        return ResponseEntity.ok(ApiResponse.success(rejectedEvent));
     }
 
     @GetMapping

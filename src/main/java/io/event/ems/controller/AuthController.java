@@ -1,19 +1,23 @@
 package io.event.ems.controller;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import io.event.ems.dto.*;
 import io.event.ems.exception.AuthException;
+import io.event.ems.security.CustomUserDetails;
 import io.event.ems.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("api/v1/auth")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Authentication", description = "APIs for user authentication, registration, 2FA, and password management")
 public class AuthController {
 
@@ -122,12 +126,13 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<TokenResponse>> getMe(
-            @CookieValue(value = "accessToken", required = false) String accessToken) {
-        if (accessToken == null) {
-            throw new AuthException("Access token is missing in cookie");
+    public ResponseEntity<ApiResponse<UserResponseDTO>> getMe(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+        if (currentUser == null) {
+            throw new AuthException("User not authenticated api");
         }
-        TokenResponse userInfo = authService.getUserInfo(accessToken);
+
+        UserResponseDTO userInfo = authService.getUserInfo(currentUser.getId());
         return ResponseEntity.ok(ApiResponse.success(userInfo));
     }
 

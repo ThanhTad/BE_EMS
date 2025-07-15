@@ -14,6 +14,10 @@ public interface EventService {
 
     EventResponseDTO createEvent(EventCreationDTO eventCreationDTO);
 
+    EventResponseDTO approveEvent(UUID eventId);
+
+    EventResponseDTO rejectEvent(UUID eventId);
+
     Optional<EventResponseDTO> getEventById(UUID id);
 
     Optional<EventResponseDTO> getEventBySlug(String slug);

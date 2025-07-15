@@ -1,13 +1,12 @@
 package io.event.ems.service;
 
-import java.util.List;
-import java.util.Map;
+import io.event.ems.dto.EmailDetails;
 
 public interface EmailService {
 
     void sendOtpEmail(String toMail, String subject, String otp);
 
-    void sendGroupTicketConfirmation(String toEmail, String fullName, String transactionId, String eventName, List<Map<String, Object>> ticketDetails, Map<String, byte[]> inlineQrImages);
+    void sendPurchaseConfirmationEmail(EmailDetails emailDetails);
 
     public void sendWelcomeEmail(String to, String username);
 

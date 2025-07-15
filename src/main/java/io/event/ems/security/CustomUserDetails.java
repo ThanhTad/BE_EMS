@@ -1,10 +1,9 @@
 package io.event.ems.security;
 
-import io.event.ems.model.User;
-import lombok.Getter;
 import io.event.ems.model.Role;
 import io.event.ems.model.StatusCode;
-
+import io.event.ems.model.User;
+import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -34,10 +33,6 @@ public class CustomUserDetails implements UserDetails {
         this.role = user.getRole();
         this.status = user.getStatus();
         this.authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
-    }
-
-    public User getUser() {
-        return this.user;
     }
 
     @Override

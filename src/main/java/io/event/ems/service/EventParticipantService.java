@@ -1,28 +1,21 @@
 package io.event.ems.service;
 
-import java.util.Optional;
-import java.util.UUID;
-
+import io.event.ems.dto.EventParticipantRequestDTO;
+import io.event.ems.dto.EventParticipantResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import io.event.ems.dto.EventParticipantDTO;
-import io.event.ems.exception.ResourceNotFoundException;
+import java.util.UUID;
 
 public interface EventParticipantService {
 
-    Page<EventParticipantDTO> getAllEventParticipant(Pageable pageable);
+    EventParticipantResponseDTO registerParticipant(EventParticipantRequestDTO request);
 
-    Optional<EventParticipantDTO> getEventParticipantById(UUID id) throws ResourceNotFoundException;
+    Page<EventParticipantResponseDTO> getParticipantsByEvent(UUID eventId, Pageable pageable);
 
-    EventParticipantDTO createEventParticipant(EventParticipantDTO eventParticipantDTO) throws ResourceNotFoundException;
+    Page<EventParticipantResponseDTO> getEventsByUser(UUID userId, Pageable pageable);
 
-    EventParticipantDTO updateEventParticipant(UUID id, EventParticipantDTO eventParticipantDTO) throws ResourceNotFoundException;
+    void unregisterParticipant(UUID participantId);
 
-    void deleteEventParticipant(UUID id) throws ResourceNotFoundException;
 
-    Page<EventParticipantDTO> getEventParticipantsByEventId(UUID eventId, Pageable pageable);
-    Page<EventParticipantDTO> getEventParticipantsByUserId(UUID userId, Pageable pageable);
-    Page<EventParticipantDTO> getEventParticipantsByStatusId(Integer statusId, Pageable pageable);
-    
 }

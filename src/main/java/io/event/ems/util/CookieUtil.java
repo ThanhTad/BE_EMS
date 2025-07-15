@@ -40,7 +40,7 @@ public class CookieUtil {
     }
 
     public void createRefreshTokenCookie(HttpServletResponse response, String token) {
-        String header = buildSetCookieHeader(refreshTokenCookieName, token, refreshTokenMaxAge, false);
+        String header = buildSetCookieHeader(refreshTokenCookieName, token, refreshTokenMaxAge, true);
         response.addHeader("Set-Cookie", header);
     }
 

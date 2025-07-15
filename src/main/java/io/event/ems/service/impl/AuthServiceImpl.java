@@ -53,6 +53,7 @@ public class AuthServiceImpl implements AuthService {
     private final CookieUtil cookieUtil;
     private final ResetTokenService resetTokenService;
     private final ChallengeTokenService challengeTokenService;
+    private final UserMapper userMapper;
 
     private static final String OTP_TYPE_2FA_LOGIN = "2FA_LOGIN";
     private static final String OTP_TYPE_2FA_ENABLE = "2FA_ENABLE";
@@ -554,21 +555,15 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public TokenResponse getUserInfo(String accessToken) {
-        String username = jwtService.extractUsername(accessToken);
-        if (username == null) {
+    public UserResponseDTO getUserInfo(UUID userId) {
+        if (userId == null) {
             throw new AuthException("Invalid or missing access token");
         }
 
-        User user = findUserByUsername(username);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
-        Long expirationMillis = jwtService.extractClaim(accessToken, claims -> claims.getExpiration().getTime());
-
-        return TokenResponse.builder()
-                .accessTokenExpiresIn(expirationMillis)
-                .twoFactorEnabled(user.getTwoFactorEnabled())
-                .user(mapper.toResponseDTO(user))
-                .build();
+        return userMapper.toResponseDTO(user);
     }
 
     @Override

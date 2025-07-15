@@ -20,12 +20,12 @@ public class EventResponseDTO {
     private String description;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
-    private VenueDTO venue; // Trả về DTO của Venue
-    private Set<CategoryDTO> categories; // Trả về DTO của Category
-    private UserSummaryDTO creator; // Trả về DTO tóm tắt của User
+    private VenueDTO venue;
+    private Set<CategoryDTO> categories;
+    private UserSummaryDTO creator;
     private TicketSelectionModeEnum ticketSelectionMode;
-    private SeatMapSummaryDTO seatMap; // Trả về DTO tóm tắt của SeatMap
-    private StatusCodeDTO status; // Trả về DTO của StatusCode
+    private SeatMapSummaryDTO seatMap;
+    private StatusCodeDTO status;
     private Boolean isPublic;
     private String coverImageUrl;
     private LocalDateTime createdAt;

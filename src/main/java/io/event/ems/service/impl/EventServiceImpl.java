@@ -34,6 +34,11 @@ public class EventServiceImpl implements EventService {
     private final VenueRepository venueRepository;
     private final SeatMapRepository seatMapRepository;
 
+    private static final String EVENT_ENTITY_TYPE = "EVENT";
+    private static final String STATUS_PENDING = "PENDING_APPROVAL";
+    private static final String STATUS_APPROVED = "APPROVED";
+    private static final String STATUS_REJECTED = "REJECTED";
+
     @Override
     public EventResponseDTO createEvent(EventCreationDTO eventCreationDTO) {
         log.info("Creating event: {}", eventCreationDTO);
@@ -47,9 +52,9 @@ public class EventServiceImpl implements EventService {
 
         String slug = generateUniqueSlug(eventCreationDTO.getTitle());
 
-        StatusCode statusCode = statusCodeRepository.findByEntityTypeAndStatus("EVENT", "PUBLISHED")
+        StatusCode statusCode = statusCodeRepository.findByEntityTypeAndStatus(EVENT_ENTITY_TYPE, STATUS_PENDING)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Status not found with Entity: EVENT and Status: PUBLISHED"));
+                        "Status not found with Entity: EVENT and Status: PENDING_APPROVAL"));
 
         Event event = eventMapper.toEntity(eventCreationDTO);
         event.setSlug(slug);
@@ -75,6 +80,44 @@ public class EventServiceImpl implements EventService {
 
         Event savedEvent = eventRepository.save(event);
         return eventMapper.toResponseDTO(savedEvent);
+    }
+
+    @Override
+    @Transactional
+    public EventResponseDTO approveEvent(UUID eventId) {
+        log.info("Approving event with id: {}", eventId);
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+        if (!event.getStatus().getStatus().equals(STATUS_PENDING)) {
+            throw new IllegalStateException("Event is not in PENDING_APPROVAL status");
+        }
+
+        event.setStatus(statusCodeRepository.findByEntityTypeAndStatus(EVENT_ENTITY_TYPE, STATUS_APPROVED)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Status not found with Entity: EVENT and Status: APPROVED")));
+
+        Event updatedEvent = eventRepository.save(event);
+        log.info("Approved event with Id: {}", updatedEvent.getId());
+        return eventMapper.toResponseDTO(updatedEvent);
+    }
+
+    @Override
+    @Transactional
+    public EventResponseDTO rejectEvent(UUID eventId) {
+        log.info("Rejecting event with id: {}", eventId);
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+
+        if (!event.getStatus().getStatus().equals(STATUS_PENDING)) {
+            throw new IllegalStateException("Event is not in PENDING_APPROVAL status");
+        }
+
+        event.setStatus(statusCodeRepository.findByEntityTypeAndStatus(EVENT_ENTITY_TYPE, STATUS_REJECTED)
+                .orElseThrow(() -> new ResourceNotFoundException("Status 'REJECTED' not found.")));
+
+        Event updatedEvent = eventRepository.save(event);
+        log.info("Rejected event with Id: {}", updatedEvent.getId());
+        return eventMapper.toResponseDTO(updatedEvent);
     }
 
     @Override
@@ -105,7 +148,9 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     public Page<EventResponseDTO> getPublicEvents(Pageable pageable) {
         log.debug("Fetching all public events");
-        return eventRepository.findByIsPublicTrue(pageable)
+        StatusCode statusCode = statusCodeRepository.findByEntityTypeAndStatus(EVENT_ENTITY_TYPE, STATUS_APPROVED)
+                .orElseThrow(() -> new ResourceNotFoundException("Status 'APPROVED' not found."));
+        return eventRepository.findByIsPublicTrueAndStatusId(statusCode.getId(), pageable)
                 .map(eventMapper::toResponseDTO);
     }
 
@@ -115,10 +160,15 @@ public class EventServiceImpl implements EventService {
     public Page<EventResponseDTO> searchEvents(String keyword, Pageable pageable) {
         log.debug("Searching for events with keyword: {}", keyword);
         if (keyword == null || keyword.trim().isEmpty()) {
-            return getAllEvents(pageable);
+            return getPublicEvents(pageable);
         }
 
-        return eventRepository.searchEvents(keyword, pageable)
+        StatusCode approvedStatus = statusCodeRepository.findByEntityTypeAndStatus(EVENT_ENTITY_TYPE, STATUS_APPROVED)
+                .orElseThrow(() -> new IllegalStateException("APPROVED status not found in database."));
+
+        String processedQuery = keyword.trim().replaceAll("\\s+", " & ");
+
+        return eventRepository.searchByFullText(processedQuery, approvedStatus.getId(), pageable)
                 .map(eventMapper::toResponseDTO);
     }
 
@@ -169,7 +219,7 @@ public class EventServiceImpl implements EventService {
 
         if (eventRequestDTO.getCategoryIds() != null) {
             existingEvent.getCategories().clear();
-            if (eventRequestDTO.getCategoryIds().isEmpty()) {
+            if (!eventRequestDTO.getCategoryIds().isEmpty()) {
                 Set<Category> categories = new HashSet<>();
                 for (UUID categoryId : eventRequestDTO.getCategoryIds()) {
                     Category category = categoryRepository.findById(categoryId)

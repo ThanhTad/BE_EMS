@@ -26,7 +26,7 @@ public class EventSeatStatus {
     private Seat seat;
 
     @Column(nullable = false)
-    private String status = "AVAILABLE";
+    private String status = "available";
 
     private LocalDateTime heldUntil;
 
