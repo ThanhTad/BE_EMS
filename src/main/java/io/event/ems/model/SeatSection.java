@@ -1,22 +1,26 @@
 package io.event.ems.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.hypersistence.utils.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
-import lombok.Data;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Table;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Type;
-import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.annotations.UuidGenerator;
+import lombok.Setter;
+import org.hibernate.annotations.*;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
 @Table(name = "seat_sections")
-@Data
+@Setter
+@Getter
 @NoArgsConstructor
 public class SeatSection {
 
@@ -31,15 +35,39 @@ public class SeatSection {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seat_map_id", nullable = false)
+    @JsonBackReference("seatmap-section")
     private SeatMap seatMap;
 
     @OneToMany(mappedBy = "section", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Seat> seats = new ArrayList<>();
+    @BatchSize(size = 25)
+    @JsonManagedReference("section-seat")
+    private Set<Seat> seats = new HashSet<>();
 
     @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
     private JsonNode layoutData;
 
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        // Chỉ cần class là con của SeatSection là được, không cần chính xác là SeatSection
+        if (o == null || !(o instanceof Seat)) return false;
+        Seat that = (Seat) o;
+        // Chỉ so sánh dựa trên ID.
+        // ID không được null và phải bằng nhau.
+        return id != null && id.equals(that.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        // Chỉ hash dựa trên ID. Nếu ID là null, dùng hash mặc định.
+        // Cách viết này phổ biến và an toàn.
+        return id != null ? id.hashCode() : super.hashCode();
+    }
 }

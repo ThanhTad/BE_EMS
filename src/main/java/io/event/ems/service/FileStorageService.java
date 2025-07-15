@@ -4,8 +4,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface FileStorageService {
 
-    String storeFile(MultipartFile file, String directory);
+    String storeFile(MultipartFile file, String destinationPath);
 
-    String deleteFile(String oldAvatarUrl);
+    void deleteFile(String fileUrl) throws Exception;
 
 }

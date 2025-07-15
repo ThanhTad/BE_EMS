@@ -20,6 +20,7 @@ public interface QrCodeService {
      * @return Dữ liệu byte của ảnh QR code (có thể tạo 1 QR cho cả nhóm hoặc nhiều QR)
      * Ở đây ta tạo 1 QR cho cả nhóm.
      */
-    byte[] generateQrCodeForGaTicketGroup(PurchasedGaTicket gaTicketGroup);
+    byte[] generateQrCodeForGaTicket(PurchasedGaTicket gaTicketGroup);
+
 
 }

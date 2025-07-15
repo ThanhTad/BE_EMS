@@ -20,16 +20,23 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     Optional<Ticket> findByIdAndEventId(UUID id, UUID eventId);
 
+    @Query("SELECT t FROM Ticket t WHERE t.event.id = :eventId AND t.appliesToSection.id = :sectionId")
+    List<Ticket> findByEventIdAndSectionId(@Param("eventId") UUID eventId, @Param("sectionId") UUID sectionId);
+
+    @Query("SELECT t FROM Ticket t WHERE t.event.id = :eventId AND t.appliesToSection IS NULL")
+    List<Ticket> findGeneralAdmissionTicketsByEventId(@Param("eventId") UUID eventId);
+
+    @Query("SELECT t FROM Ticket t WHERE t.event.id = :eventId AND t.appliesToSection.id IN :sectionIds")
+    List<Ticket> findByEventIdAndSectionIdIn(@Param("eventId") UUID eventId, @Param("sectionIds") List<UUID> sectionIds);
+
     @Modifying
     @Query("UPDATE Ticket t SET t.availableQuantity = t.availableQuantity - :quantity " +
             "WHERE t.id = :ticketId AND t.availableQuantity >= :quantity")
     int decreaseAvailableQuantity(@Param("ticketId") UUID ticketId, @Param("quantity") int quantity);
 
-    @Query("SELECT t FROM Ticket t " +
-            "JOIN FETCH t.appliesToSection s " +
-            "WHERE t.event.id = :eventId AND s.id IN :sectionIds")
-    List<Ticket> findByEventIdAndSectionIdsWithDetails(
-            @Param("eventId") UUID eventId,
-            @Param("sectionIds") List<UUID> sectionIds
-    );
+    @Modifying
+    @Query("UPDATE Ticket t SET t.availableQuantity = t.availableQuantity + :quantity WHERE t.id = :ticketId")
+    void increaseAvailableQuantity(@Param("ticketId") UUID ticketId, @Param("quantity") int quantity);
+
+    List<Ticket> findByEventIdAndNameContainingIgnoreCase(UUID eventId, String name);
 }

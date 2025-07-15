@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Xác nhận đơn hàng</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <style>
+        /* CSS styles for your email */
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        .ticket-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+
+        .qr-code {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 th:text="|Xác nhận đơn hàng cho sự kiện: ${eventName}|">Xác nhận đơn hàng</h1>
+    <p>Chào <strong th:text="${customerName}">bạn</strong>,</p>
+    <p>Cảm ơn bạn đã đặt vé. Dưới đây là thông tin chi tiết về đơn hàng của bạn (Mã giao dịch: <b
+            th:text="${transactionId}"></b>).</p>
+    <p>Vui lòng xuất trình mã QR tương ứng với vé của bạn tại cổng soát vé.</p>
+
+    <hr/>
+
+    <!-- Lặp qua danh sách các vé đã mua -->
+    <div th:each="ticket : ${tickets}" class="ticket-item">
+        <h3 th:text="${ticket.ticketName}">Tên vé</h3>
+        <ul>
+            <li><strong>Số lượng:</strong> <span th:text="${ticket.quantity}">1</span></li>
+            <li><strong>Đơn giá:</strong> <span
+                    th:text="${#numbers.formatDecimal(ticket.pricePerItem, 0, 'COMMA', 0, 'POINT')} + ' VNĐ'">500,000 VNĐ</span>
+            </li>
+            <li><strong>Chi tiết:</strong> <span th:text="${ticket.details}">Khu A - Hàng B - Ghế 12</span></li>
+        </ul>
+        <!-- Nhúng ảnh QR Code bằng Content-ID (cid) -->
+        <div class="qr-code">
+            <img th:src="|cid:${ticket.qrCodeCid}|" alt="QR Code" width="200"/>
+        </div>
+    </div>
+
+    <hr/>
+    <p>Hẹn gặp bạn tại sự kiện!</p>
+</div>
+</body>
+</html>

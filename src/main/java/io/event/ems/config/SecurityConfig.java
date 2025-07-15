@@ -1,5 +1,7 @@
 package io.event.ems.config;
 
+import io.event.ems.security.filter.JwtCookieAuthenticationFilter;
+import io.event.ems.service.impl.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +13,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,10 +22,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import io.event.ems.security.filter.JwtCookieAuthenticationFilter;
-import io.event.ems.service.impl.UserDetailsServiceImpl;
-
 import java.util.Arrays;
+import java.util.List;
+
+import static org.springframework.http.HttpMethod.GET;
 
 @Configuration
 @EnableWebSecurity
@@ -30,132 +33,139 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-        private final JwtCookieAuthenticationFilter jwtCookieAuthFilter;
-        private final UserDetailsServiceImpl userDetailsService;
+    private final JwtCookieAuthenticationFilter jwtCookieAuthFilter;
+    private final UserDetailsServiceImpl userDetailsService;
 
-        // Các đường dẫn công khai không yêu cầu xác thực
-        private static final String[] PUBLIC_PATHS = {
-                        "/api/v1/auth/**",
-                        "/v3/api-docs/**", // Cho OpenAPI v3
-                        "/swagger-ui/**", // Cho Swagger UI
-                        "/swagger-resources/**", // Các tài nguyên khác của Swagger
-                        "/webjars/**" // Webjars thường dùng bởi Swagger UI
-                        // Thêm các đường dẫn công khai khác nếu cần (ví dụ: trang chủ, trang giới
-                        // thiệu...)
-        };
+    // Các đường dẫn công khai không yêu cầu xác thực
+    private static final String[] PUBLIC_PATHS = {
+            "/api/v1/auth/**",
+            "/v3/api-docs/**", // Cho OpenAPI v3
+            "/swagger-ui/**", // Cho Swagger UI
+            "/swagger-resources/**", // Các tài nguyên khác của Swagger
+            "/webjars/**", // Webjars thường dùng bởi Swagger UI
+            // THÊM CÁC ĐƯỜNG DẪN XEM SỰ KIỆN VÀO ĐÂY
+            "/api/v1/events",          // Cho phép xem danh sách
+            "/api/v1/events/search",   // Cho phép tìm kiếm
+            "/api/v1/events/{id}",     // Cho phép xem chi tiết bằng ID
+            "/api/v1/events/slug/**",  // Cho phép xem chi tiết bằng slug (dùng ** để khớp cả /slug/ten-su-kien)
 
-        // Các đường dẫn chỉ dành cho ADMIN
-        private static final String[] ADMIN_PATHS = {
-                        "/api/v1/admin/**"
-                        // Thêm các đường dẫn admin khác
-        };
+            // Thêm các endpoint công khai khác nếu cần, ví dụ:
+            "/api/v1/categories",      // Lấy danh sách danh mục
+            "/api/v1/venues",          // Lấy danh sách địa điểm
+    };
 
-        @Bean
-        public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-                http
-                                // 1. Cấu hình CSRF
-                                // Khi sử dụng cookie, có thể cân nhắc bật CSRF protection
-                                // Trong trường hợp JWT được lưu trong HttpOnly cookie, CSRF vẫn cần thiết
-                                // Tuy nhiên, nếu API của bạn chỉ dùng cho các client không phải trình duyệt
-                                // (như mobile app), có thể giữ CSRF disable
-                                .csrf(AbstractHttpConfigurer::disable)
+    // Các đường dẫn chỉ dành cho ADMIN
+    private static final String[] ADMIN_PATHS = {
+            "/api/v1/admin/**"
+            // Thêm các đường dẫn admin khác
+    };
 
-                                // 2. Cấu hình CORS (Cross-Origin Resource Sharing)
-                                // Quan trọng: khi dùng cookie, cần đảm bảo allowCredentials(true)
-                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                // 1. Cấu hình CSRF
+                // Khi sử dụng cookie, có thể cân nhắc bật CSRF protection
+                // Trong trường hợp JWT được lưu trong HttpOnly cookie, CSRF vẫn cần thiết
+                // Tuy nhiên, nếu API của bạn chỉ dùng cho các client không phải trình duyệt
+                // (như mobile app), có thể giữ CSRF disable
+                .csrf(AbstractHttpConfigurer::disable)
 
-                                // 3. Phân quyền truy cập cho các request HTTP
-                                .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers(PUBLIC_PATHS).permitAll()
-                                                .requestMatchers(ADMIN_PATHS).hasRole("ADMIN")
-                                                // Thay đổi này - những request khác cần xác thực
-                                                .anyRequest().permitAll())
+                // 2. Cấu hình CORS (Cross-Origin Resource Sharing)
+                // Quan trọng: khi dùng cookie, cần đảm bảo allowCredentials(true)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                                // 4. Quản lý session: STATELESS vì dùng JWT
-                                .sessionManagement(session -> session
-                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 3. Phân quyền truy cập cho các request HTTP
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(GET, "/api/v1/events", "/api/v1/events/**", "/api/v1/categories/**", "/api/v1/ticketing/**").permitAll() // Chỉ cho phép GET công khai
+                        .requestMatchers("/api/v1/auth/**", "/v3/api-docs/**", "/swagger-ui/**", "/webjars/**").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
 
-                                // 5. Cấu hình Authentication Provider
-                                .authenticationProvider(authenticationProvider())
+                // 4. Quản lý session: STATELESS vì dùng JWT
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                                // 6. Thêm bộ lọc JWT Cookie vào trước bộ lọc
-                                // UsernamePasswordAuthenticationFilter
-                                .addFilterBefore(jwtCookieAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // 5. Cấu hình Authentication Provider
+                .authenticationProvider(authenticationProvider())
 
-                                // 7. Cấu hình các Security Headers để tăng cường bảo mật
-                                .headers(headers -> headers
-                                                // Content Security Policy (CSP): Giảm thiểu XSS
-                                                .contentSecurityPolicy(csp -> csp
-                                                                .policyDirectives(
-                                                                                "default-src 'self'; " +
-                                                                                                "script-src 'self'; " +
-                                                                                                "style-src 'self' 'unsafe-inline'; "
-                                                                                                +
-                                                                                                "img-src 'self' data:; "
-                                                                                                +
-                                                                                                "font-src 'self'; " +
-                                                                                                "connect-src 'self'; " +
-                                                                                                "frame-src 'self'; " +
-                                                                                                "object-src 'none'; " +
-                                                                                                "form-action 'self'; " +
-                                                                                                "base-uri 'self';"))
-                                                // X-Content-Type-Options: Ngăn chặn tấn công MIME-sniffing
-                                                .contentTypeOptions(contentTypeOptions -> {
-                                                })
+                // 6. Thêm bộ lọc JWT Cookie vào trước bộ lọc
+                // UsernamePasswordAuthenticationFilter
+                .addFilterBefore(jwtCookieAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
-                                                // X-Frame-Options: Ngăn chặn clickjacking
-                                                .frameOptions(frameOptions -> frameOptions.sameOrigin()));
+                // 7. Cấu hình các Security Headers để tăng cường bảo mật
+                .headers(headers -> headers
+                        // Content Security Policy (CSP): Giảm thiểu XSS
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives(
+                                        "default-src 'self'; " +
+                                                "script-src 'self'; " +
+                                                "style-src 'self' 'unsafe-inline'; "
+                                                +
+                                                "img-src 'self' data:; "
+                                                +
+                                                "font-src 'self'; " +
+                                                "connect-src 'self'; " +
+                                                "frame-src 'self'; " +
+                                                "object-src 'none'; " +
+                                                "form-action 'self'; " +
+                                                "base-uri 'self';"))
+                        // X-Content-Type-Options: Ngăn chặn tấn công MIME-sniffing
+                        .contentTypeOptions(contentTypeOptions -> {
+                        })
 
-                return http.build();
-        }
+                        // X-Frame-Options: Ngăn chặn clickjacking
+                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin));
 
-        @Bean
-        public PasswordEncoder passwordEncoder() {
-                return new BCryptPasswordEncoder();
-        }
+        return http.build();
+    }
 
-        @Bean
-        public AuthenticationProvider authenticationProvider() {
-                // Sử dụng constructor mới, truyền vào userDetailsService
-                DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
-                authProvider.setPasswordEncoder(passwordEncoder()); // còn set password encoder như cũ
-                return authProvider;
-        }
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
-        @Bean
-        public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-                return config.getAuthenticationManager();
-        }
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
+        // Sử dụng constructor mới, truyền vào userDetailsService
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder()); // còn set password encoder như cũ
+        return authProvider;
+    }
 
-        @Bean
-        public UrlBasedCorsConfigurationSource corsConfigurationSource() {
-                CorsConfiguration config = new CorsConfiguration();
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
 
-                config.setAllowedOrigins(Arrays.asList(
-                                "http://localhost:3000",
-                                "http://localhost:8081",
-                                "https://your-production-frontend.com"));
+    @Bean
+    public UrlBasedCorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
 
-                config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedOrigins(Arrays.asList(
+                "http://localhost:3000",
+                "http://localhost:8081",
+                "https://your-production-frontend.com"));
 
-                config.setAllowedHeaders(Arrays.asList(
-                                "Authorization",
-                                "Content-Type",
-                                "Accept",
-                                "X-Requested-With",
-                                "Origin",
-                                "Access-Control-Request-Method",
-                                "Access-Control-Request-Headers"));
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
-                config.setExposedHeaders(Arrays.asList("Content-Disposition"));
+        config.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "X-Requested-With",
+                "Origin",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers"));
 
-                // Cực kỳ quan trọng khi sử dụng cookie
-                config.setAllowCredentials(true);
+        config.setExposedHeaders(List.of("Content-Disposition"));
 
-                config.setMaxAge(3600L);
+        // Cực kỳ quan trọng khi sử dụng cookie
+        config.setAllowCredentials(true);
 
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                source.registerCorsConfiguration("/**", config);
-                return source;
-        }
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
 }
