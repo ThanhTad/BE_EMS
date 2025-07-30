@@ -81,10 +81,10 @@ public class AuthServiceImpl implements AuthService {
                 throw new AuthException("Account is not verified. Please check your email.");
             }
             // Kiểm tra trạng thái người dùng
-            checkUserStatus(user, STATUS_ACTIVE, "Account is not active or locked");
+            checkUserStatus(user, "Account is not active or locked");
 
             if (user.getTwoFactorEnabled()) {
-                return handleTwoFactorRequired(user.getEmail(), OTP_TYPE_2FA_LOGIN);
+                return handleTwoFactorRequired(user.getEmail());
             }
 
             updateLastLogin(user);
@@ -176,13 +176,13 @@ public class AuthServiceImpl implements AuthService {
         log.debug("Updated last login for user: {}", user.getUsername());
     }
 
-    private TokenResponse handleTwoFactorRequired(String userEmail, String otpType) {
+    private TokenResponse handleTwoFactorRequired(String userEmail) {
         log.info("2FA required for user associated with {}. Sending OTP.", userEmail);
         try {
             String challengeToken = challengeTokenService.generateChallengerToken(userEmail);
 
-            String otp = otpService.generateAndStoreOtp(userEmail, otpType);
-            String subject = getOtpEmailSubject(otpType);
+            String otp = otpService.generateAndStoreOtp(userEmail, AuthServiceImpl.OTP_TYPE_2FA_LOGIN);
+            String subject = getOtpEmailSubject(AuthServiceImpl.OTP_TYPE_2FA_LOGIN);
             emailService.sendOtpEmail(userEmail, subject, otp);
 
             return TokenResponse.builder()
@@ -206,10 +206,10 @@ public class AuthServiceImpl implements AuthService {
         };
     }
 
-    private void checkUserStatus(User user, String expectedStatus, String errorMessage) {
-        if (user.getStatus() == null || !expectedStatus.equalsIgnoreCase(user.getStatus().getStatus())) {
+    private void checkUserStatus(User user, String errorMessage) {
+        if (user.getStatus() == null || !AuthServiceImpl.STATUS_ACTIVE.equalsIgnoreCase(user.getStatus().getStatus())) {
             log.warn("User status check failed for {}. Expected: {}, Actual: {}",
-                    user.getUsername(), expectedStatus,
+                    user.getUsername(), AuthServiceImpl.STATUS_ACTIVE,
                     user.getStatus() != null ? user.getStatus().getStatus() : "null");
             if (user.getStatus() != null && STATUS_LOCKED.equalsIgnoreCase(user.getStatus().getStatus())) {
                 throw new AuthException("Account is locked.");
@@ -306,7 +306,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
-        checkUserStatus(user, STATUS_ACTIVE, "Cannot reset password for inactive account");
+        checkUserStatus(user, "Cannot reset password for inactive account");
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
@@ -362,7 +362,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("Enabling 2FA for user: {}", username);
         User user = findUserByUsername(username);
 
-        checkUserStatus(user, STATUS_ACTIVE, "Cannot enable 2FA for inactive account");
+        checkUserStatus(user, "Cannot enable 2FA for inactive account");
 
         if (user.getTwoFactorEnabled()) {
             throw new AuthException("2FA is already enabled for this account.");
@@ -390,7 +390,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("Disabling 2FA For user {}", username);
 
         User user = findUserByUsername(username);
-        checkUserStatus(user, STATUS_ACTIVE, "Cannot disable 2FA for inactive account");
+        checkUserStatus(user, "Cannot disable 2FA for inactive account");
 
         if (!user.getTwoFactorEnabled()) {
             log.warn("Attempted to disable 2FA for user associated with email {} but it was not enabled.",
@@ -412,7 +412,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("Sending OTP to disable 2FA for user {}", username);
 
         User user = findUserByUsername(username);
-        checkUserStatus(user, STATUS_ACTIVE, "Cannot send otp for inactive account");
+        checkUserStatus(user, "Cannot send otp for inactive account");
 
         if (!user.getTwoFactorEnabled()) {
             log.warn("User {} tried to request disable-2FA OTP but 2FA is not enabled.", user.getUsername());
@@ -457,7 +457,7 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("Verifying 2FA OTP for identifier: {}", username);
 
-        checkUserStatus(user, STATUS_ACTIVE, "Cannot verify for inactive account");
+        checkUserStatus(user, "Cannot verify for inactive account");
 
         validateOtp(user.getEmail(), OTP_TYPE_2FA_LOGIN, otp);
 
@@ -582,6 +582,7 @@ public class AuthServiceImpl implements AuthService {
         user.setStatus(activeStatus);
         user.setEmailVerified(true);
         userRepository.save(user);
+        emailService.sendWelcomeEmail(user.getEmail(), user.getUsername());
         log.info("Email OTP verified successfully for user: {}", user.getUsername());
     }
 
@@ -591,7 +592,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("Sending OTP to enable 2FA for user {}", username);
 
         User user = findUserByUsername(username);
-        checkUserStatus(user, STATUS_ACTIVE, "Cannot send otp for inactive account");
+        checkUserStatus(user, "Cannot send otp for inactive account");
 
         if (user.getTwoFactorEnabled()) {
             log.warn("User {} tried to request enable-2FA OTP but 2FA is already enabled.", user.getUsername());

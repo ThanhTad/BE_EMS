@@ -1,7 +1,6 @@
 package io.event.ems.controller;
 
 import io.event.ems.dto.*;
-import io.event.ems.exception.AuthException;
 import io.event.ems.security.CustomUserDetails;
 import io.event.ems.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -128,10 +127,6 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponseDTO>> getMe(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
-        if (currentUser == null) {
-            throw new AuthException("User not authenticated api");
-        }
-
         UserResponseDTO userInfo = authService.getUserInfo(currentUser.getId());
         return ResponseEntity.ok(ApiResponse.success(userInfo));
     }

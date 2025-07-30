@@ -1,30 +1,22 @@
 package io.event.ems.security.jwt;
 
+import io.event.ems.exception.UnauthorizedException;
+import io.event.ems.service.RedisService;
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
-
-import javax.crypto.SecretKey;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Service;
-
-import io.event.ems.exception.UnauthorizedException;
-import io.event.ems.service.RedisService;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.JwtBuilder;
-import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.UnsupportedJwtException;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
@@ -45,7 +37,7 @@ public class JwtService {
 
     private final RedisService redisService;
 
-    private static final String REFRESH_TOKEN_BLACKLIST_PREFEX = "blacklist:refresh";
+    private static final String REFRESH_TOKEN_BLACKLIST_PREFIX = "blacklist:refresh";
 
     public String generateAccessToken(UserDetails userDetails) {
         return generateToken(new HashMap<>(), userDetails, accessTokenExpiration, null);
@@ -75,25 +67,10 @@ public class JwtService {
         return builder.compact();
     }
 
-    public String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration, String jti) {
-        JwtBuilder builder = Jwts.builder()
-                .claims(extraClaims)
-                .subject(userDetails.getUsername())
-                .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSignInKey());
-
-        if (jti != null) {
-            builder.id(jti);
-        }
-
-        return builder.compact();
-    }
-
     public boolean isTokenValid(String token, UserDetails userDetails) {
         try {
             final String username = extractUsername(token);
-            boolean valid = (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+            boolean valid = (username.equals(userDetails.getUsername())) && isTokenExpired(token);
 
             if (valid && isRefreshToken(token)) {
                 String jti = extractJti(token);
@@ -119,15 +96,15 @@ public class JwtService {
     public void blacklistRefreshToken(String jti) {
         if (jti == null)
             return;
-        String key = REFRESH_TOKEN_BLACKLIST_PREFEX + jti;
+        String key = REFRESH_TOKEN_BLACKLIST_PREFIX + jti;
         redisService.setValue(key, "blacklisted", redisTtl);
-        log.info("Blacklistedl refresh token (JTI: {})", jti);
+        log.info("Blacklisted refresh token (JTI: {})", jti);
     }
 
     public boolean isRefreshTokenBlacklisted(String jti) {
         if (jti == null)
             return false;
-        String key = REFRESH_TOKEN_BLACKLIST_PREFEX + jti;
+        String key = REFRESH_TOKEN_BLACKLIST_PREFIX + jti;
         return redisService.getValue(key) != null;
     }
 
@@ -157,12 +134,12 @@ public class JwtService {
 
     public boolean isTokenExpired(String token) {
         try {
-            return extractExpiration(token).before(new Date());
+            return !extractExpiration(token).before(new Date());
         } catch (ExpiredJwtException e) {
-            return true;
+            return false;
         } catch (JwtException | IllegalArgumentException e) {
             log.error("Error checking token expiration: {}", e.getMessage());
-            return false;
+            return true;
         }
     }
 
@@ -198,7 +175,7 @@ public class JwtService {
     public boolean isValidToken(String token) {
         try {
             extractAllClaims(token);
-            return !isTokenExpired(token);
+            return isTokenExpired(token);
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("Invalid token: {}", e.getMessage());
             return false;

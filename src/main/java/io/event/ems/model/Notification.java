@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "notifications", indexes = {
-        @Index(name = "idx_notification_user_seen", columnList = "user_id, seen"),
+        @Index(name = "idx_notification_user_read", columnList = "user_id, read"),
         @Index(name = "idx_notification_user_created", columnList = "user_id, created_at")
 })
 @Data

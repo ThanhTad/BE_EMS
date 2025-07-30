@@ -7,38 +7,90 @@ import io.event.ems.exception.ResourceNotFoundException;
 import io.event.ems.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/events")
 @RequiredArgsConstructor
-@Tag(name = "Event", description = "Event management APIs")
+@Tag(name = "Events", description = "APIs for both public browsing and event management")
 public class EventController {
 
     private final EventService eventService;
 
+    // =================================================================
+    // ADMIN & ORGANIZER ENDPOINTS
+    // =================================================================
+
+    @GetMapping("/admin") // URL: /api/v1/events/admin
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
+    @Operation(summary = "[ADMIN] Get all events for management view",
+            description = "**Requires ADMIN or ORGANIZER role.** Creates a new event and returns the created event.")
+    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getAllEventsForManagement(
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        // Service sẽ có logic để phân biệt:
+        // - Nếu là ADMIN -> trả về tất cả.
+        // - Nếu là ORGANIZER -> chỉ trả về các event do họ tạo.
+        Page<EventResponseDTO> events = eventService.getAllEventsForManagement(pageable);
+
+        return ResponseEntity.ok(ApiResponse.success(events));
+    }
+
     @PostMapping
-    @Operation(summary = "Create a new event", description = "Creates a new event and returns the created event.")
-    public ResponseEntity<ApiResponse<EventResponseDTO>> createEvent(@RequestBody EventCreationDTO eventCreationDTO) {
-        EventResponseDTO createEvent = eventService.createEvent(eventCreationDTO);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(createEvent));
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
+    @Operation(
+            summary = "Create a new event",
+            description = "**Requires ADMIN or ORGANIZER role.** Creates a new event and returns the created event."
+    )
+    public ResponseEntity<ApiResponse<EventResponseDTO>> createEvent(@Valid @RequestBody EventCreationDTO eventCreationDTO) {
+        EventResponseDTO createdEvent = eventService.createEvent(eventCreationDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(createdEvent));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
+    @Operation(
+            summary = "Update an event",
+            description = "**Requires ADMIN or ORGANIZER role.** Updates an existing event by its ID."
+    )
+    public ResponseEntity<ApiResponse<EventResponseDTO>> updateEvent(@PathVariable UUID id,
+                                                                     @Valid @RequestBody EventCreationDTO eventRequestDTO) throws ResourceNotFoundException {
+        EventResponseDTO updatedEvent = eventService.updateEvent(id, eventRequestDTO);
+        return ResponseEntity.ok(ApiResponse.success(updatedEvent));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
+    @Operation(
+            summary = "Delete an event",
+            description = "**Requires ADMIN or ORGANIZER role.** Deletes an event by its ID."
+    )
+    public ResponseEntity<ApiResponse<Void>> deleteEvent(@PathVariable UUID id) {
+        eventService.deleteEvent(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @PatchMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Approve a pending event",
+            description = "**Requires ADMIN role.** Approves an event, making it public if applicable."
+    )
     public ResponseEntity<ApiResponse<EventResponseDTO>> approveEvent(@PathVariable UUID id) {
         EventResponseDTO approvedEvent = eventService.approveEvent(id);
         return ResponseEntity.ok(ApiResponse.success(approvedEvent));
@@ -46,117 +98,79 @@ public class EventController {
 
     @PatchMapping("/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<EventResponseDTO>> rejectEvent(
-            @PathVariable UUID id) {
+    @Operation(
+            summary = "Reject a pending event",
+            description = "**Requires ADMIN role.** Rejects a pending event."
+    )
+    public ResponseEntity<ApiResponse<EventResponseDTO>> rejectEvent(@PathVariable UUID id) {
         EventResponseDTO rejectedEvent = eventService.rejectEvent(id);
         return ResponseEntity.ok(ApiResponse.success(rejectedEvent));
     }
 
-    @GetMapping
-    @Operation(summary = "Get all events", description = "Retrieves all event with pagination support.")
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getAllEvents(
-            @PageableDefault(size = 6, sort = "startDate") Pageable pageable) {
+    // =================================================================
+    // PUBLIC & ADMIN SHARED ENDPOINTS
+    // Endpoint /search có thể được dùng bởi cả hai, nhưng với các filter khác nhau
+    // Chúng ta sẽ dùng một endpoint và để service xử lý. Swagger sẽ mô tả cả hai trường hợp.
+    // =================================================================
 
-        Page<EventResponseDTO> events = eventService.getAllEvents(pageable);
+    @GetMapping("/search")
+    @Operation(
+            summary = "Advanced event search (Public & Admin)",
+            description = "Searches for events with multiple filters.<br>" +
+                    "**For Public users:** Only searches approved and public events.<br>" +
+                    "**For Admin/Organizer:** Can use additional filters like `statusId` and `isPublic` to search all events."
+    )
+    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> searchEvents(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) List<UUID> categoryIds,
+            @RequestParam(required = false) Integer statusId, // Sẽ là null nếu public user gọi
+            @RequestParam(required = false) Boolean isPublic, // Sẽ là null nếu public user gọi
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @PageableDefault(sort = "startDate") Pageable pageable) {
+
+        // Service của bạn cần có logic phân quyền bên trong để xử lý các filter admin
+        Page<EventResponseDTO> events = eventService.searchEventsWithFilters(
+                keyword, categoryIds, statusId, isPublic, startDate, endDate, pageable);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
-    @GetMapping("/public")
-    @Operation(summary = "Get all public events", description = "Retrieves all public events with pagination support.")
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getPublicEvents(
-            @PageableDefault(size = 6) Pageable pageable) {
 
+    // =================================================================
+    // PUBLIC ENDPOINTS
+    // =================================================================
+
+    @GetMapping("/public")
+    @Operation(
+            summary = "Get all public events",
+            description = "Retrieves all approved and public events with pagination support. No authentication required."
+    )
+    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getPublicEvents(
+            @PageableDefault(size = 6, sort = "startDate") Pageable pageable) {
         Page<EventResponseDTO> events = eventService.getPublicEvents(pageable);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
-    @GetMapping("/{id}")
-    @Operation(summary = "Get event by Id", description = "Retrieves an event by its Id.")
-    public ResponseEntity<ApiResponse<EventResponseDTO>> getEventById(@PathVariable UUID id)
-            throws ResourceNotFoundException {
-        Optional<EventResponseDTO> event = eventService.getEventById(id);
-        return event.map(dto -> new ResponseEntity<>(ApiResponse.success(dto), HttpStatus.OK))
-                .orElse(new ResponseEntity<>(ApiResponse.error(HttpStatus.NOT_FOUND, "Event not found with id: " + id),
-                        HttpStatus.NOT_FOUND));
-    }
-
     @GetMapping("/slug/{slug}")
-    @Operation(summary = "Get event by slug", description = "Retrieves a single event by its unique slug.")
+    @Operation(
+            summary = "Get a public event by slug",
+            description = "Retrieves a single, publicly visible event by its unique slug. No authentication required."
+    )
     public ResponseEntity<ApiResponse<EventResponseDTO>> getEventBySlug(@PathVariable String slug) {
         Optional<EventResponseDTO> event = eventService.getEventBySlug(slug);
-        return event.map(dto -> new ResponseEntity<>(ApiResponse.success(dto), HttpStatus.OK))
-                .orElse(new ResponseEntity<>(ApiResponse.error(HttpStatus.NOT_FOUND, "Event not found with slug: " + slug),
-                        HttpStatus.NOT_FOUND));
-    }
-
-
-    @GetMapping("/search")
-    @Operation(summary = "Advanced event search with filters", description = "Searches events with multiple optional filters.")
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> searchEventsWithFilters(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) UUID categoryId,
-            @RequestParam(required = false) Integer statusId,
-            @RequestParam(required = false) Boolean isPublic,
-            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE_TIME) LocalDateTime endDate,
-            @PageableDefault(size = 6, sort = "startDate") Pageable pageable
-    ) {
-        Page<EventResponseDTO> events = eventService.searchEventsWithFilters(
-                keyword, categoryId, statusId, isPublic, startDate, endDate, pageable);
-        return ResponseEntity.ok(ApiResponse.success(events));
-    }
-
-    @PutMapping("/{id}")
-    @Operation(summary = "Update event", description = "Updates an existing event by its Id")
-    public ResponseEntity<ApiResponse<EventResponseDTO>> updateEvent(@PathVariable UUID id,
-                                                                     @RequestBody EventCreationDTO eventRequestDTO) throws ResourceNotFoundException {
-
-        EventResponseDTO updatedEvent = eventService.updateEvent(id, eventRequestDTO);
-        return ResponseEntity.ok(ApiResponse.success(updatedEvent));
-
-    }
-
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Delete event", description = "Deletes an event by its Id")
-    public ResponseEntity<ApiResponse<Void>> deleteEvent(@PathVariable UUID id) {
-        eventService.deleteEvent(id);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    @GetMapping("/creator/{creatorId}")
-    @Operation(summary = "Get events by creator ID", description = "Retrieves events created by a specific user with pagination support.")
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getEventsByCreatorId(
-            @PathVariable UUID creatorId,
-            @PageableDefault(size = 6) Pageable pageable) {
-        Page<EventResponseDTO> events = eventService.getEventByCreatorId(creatorId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(events));
+        return event.map(dto -> ResponseEntity.ok(ApiResponse.success(dto)))
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error(HttpStatus.NOT_FOUND, "Event not found with slug: " + slug)));
     }
 
     @GetMapping("/category/{categoryId}")
-    @Operation(summary = "Get events by category ID", description = "Retrieves events belonging to a specific category with pagination support.")
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getEventsByCategoryId(
-            @PathVariable UUID categoryId,
-            @PageableDefault(size = 6) Pageable pageable) {
+    @Operation(
+            summary = "Get public events by category",
+            description = "Retrieves public events belonging to a specific category. No authentication required."
+    )
+    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getEventsByCategoryId(@PathVariable UUID categoryId, @PageableDefault(size = 6) Pageable pageable) {
         Page<EventResponseDTO> events = eventService.findByCategories_Id(categoryId, pageable);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
-    @GetMapping("/status/{statusId}")
-    @Operation(summary = "Get events by status ID", description = "Retrieves events with a specific status with pagination support.")
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getEventsByStatusId(
-            @PathVariable Integer statusId,
-            @PageableDefault(size = 6) Pageable pageable) {
-        Page<EventResponseDTO> events = eventService.getEventByStatusId(statusId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(events));
-    }
-
-    @GetMapping("/date")
-    @Operation(summary = "Get event by start date range", description = "Retrieves events within a specific start date range with pagination support.")
-    public ResponseEntity<ApiResponse<Page<EventResponseDTO>>> getEventsByStartDateBetween(
-            @RequestParam @DateTimeFormat(iso = ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam @DateTimeFormat(iso = ISO.DATE_TIME) LocalDateTime end,
-            @PageableDefault(size = 6) Pageable pageable) {
-        Page<EventResponseDTO> events = eventService.getEventByStartDateBetween(start, end, pageable);
-        return ResponseEntity.ok(ApiResponse.success(events));
-    }
 }

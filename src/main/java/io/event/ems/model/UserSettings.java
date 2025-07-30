@@ -1,34 +1,21 @@
 package io.event.ems.model;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
-
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import jakarta.persistence.*;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.MapsId;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
-import lombok.ToString;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Data
 @Table(name = "user_settings")
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(exclude = { "user" })
-@ToString(exclude = { "user" })
+@EqualsAndHashCode(exclude = {"user"})
+@ToString(exclude = {"user"})
 public class UserSettings {
 
     @Id
@@ -38,6 +25,7 @@ public class UserSettings {
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @MapsId
     @JoinColumn(name = "user_id")
+    @JsonBackReference
     private User user;
 
     @Enumerated(EnumType.STRING)

@@ -6,19 +6,20 @@ import io.event.ems.exception.ResourceNotFoundException;
 import io.event.ems.mapper.EventMapper;
 import io.event.ems.model.*;
 import io.event.ems.repository.*;
+import io.event.ems.security.CustomUserDetails;
 import io.event.ems.service.EventService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -138,10 +139,26 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<EventResponseDTO> getAllEvents(Pageable pageable) {
-        log.debug("Fetching all events");
-        return eventRepository.findAll(pageable)
-                .map(eventMapper::toResponseDTO);
+    public Page<EventResponseDTO> getAllEventsForManagement(Pageable pageable) {
+        // Lấy thông tin người dùng đang đăng nhập từ Spring Security Context
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
+
+        Page<Event> eventPage;
+
+        // Logic phân quyền cốt lõi nằm ở đây
+        if (currentUser.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            // Nếu là ADMIN, gọi phương thức findAll của repository
+            log.info("Fetching all events for ADMIN user: {}", currentUser.getUsername());
+            eventPage = eventRepository.findAll(pageable);
+        } else {
+            // Nếu là ORGANIZER (hoặc vai trò khác), chỉ lấy các event của họ
+            log.info("Fetching events for ORGANIZER user: {}", currentUser.getUsername());
+            eventPage = eventRepository.findByCreatorId(currentUser.getId(), pageable);
+        }
+
+        // Chuyển đổi Page<Event> sang Page<EventResponseDTO>
+        return eventPage.map(eventMapper::toResponseDTO);
     }
 
     @Override
@@ -175,17 +192,20 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public Page<EventResponseDTO> searchEventsWithFilters(String keyword,
-                                                          UUID categoryId,
+                                                          List<UUID> categoryIds,
                                                           Integer statusId,
                                                           Boolean isPublic,
                                                           LocalDateTime startDate,
                                                           LocalDateTime endDate,
                                                           Pageable pageable) {
         log.debug("Searching events with filters - keyword: {}, categoryId: {}, statusId: {}, isPublic: {}",
-                keyword, categoryId, statusId, isPublic);
+                keyword, categoryIds, statusId, isPublic);
 
-        return eventRepository.searchEventsWithFilters(
-                        keyword, categoryId, statusId, isPublic, startDate, endDate, pageable)
+        // Tạo specification động từ các tham số
+        Specification<Event> spec = EventSpecification.withDynamicQuery(
+                keyword, categoryIds, statusId, isPublic, startDate, endDate);
+
+        return eventRepository.findAll(spec, pageable)
                 .map(eventMapper::toResponseDTO);
     }
 

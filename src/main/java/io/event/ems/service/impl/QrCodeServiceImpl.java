@@ -6,7 +6,7 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import io.event.ems.model.EventSeatStatus;
-import io.event.ems.model.PurchasedGaTicket;
+import io.event.ems.model.PurchasedGATicket;
 import io.event.ems.model.TicketQrCode;
 import io.event.ems.repository.TicketQrCodeRepository;
 import io.event.ems.service.QrCodeService;
@@ -22,9 +22,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -55,10 +57,10 @@ public class QrCodeServiceImpl implements QrCodeService {
 
         // 3. Nếu tạo ảnh thành công, tiến hành lưu bản ghi vào DB.
         TicketQrCode qrEntity = new TicketQrCode();
-        qrEntity.setId(uniqueIdentifier); // Sử dụng UUID đã tạo làm Primary Key
         qrEntity.setEventSeat(soldSeat);
+        qrEntity.setUniqueIdentifier(uniqueIdentifier.toString());
         qrEntity.setQrCodeData(qrContent); // Lưu lại nội dung đã mã hóa
-        qrEntity.setGeneratedAt(Instant.from(LocalDateTime.now()));
+        qrEntity.setGeneratedAt(Instant.now());
 
         ticketQrCodeRepository.save(qrEntity);
 
@@ -72,25 +74,50 @@ public class QrCodeServiceImpl implements QrCodeService {
      */
     @Override
     @Transactional
-    public byte[] generateQrCodeForGaTicket(PurchasedGaTicket gaTicketGroup) {
-        log.info("Generating QR Code for GA ticket group [ID={}]", gaTicketGroup.getId());
+    public List<byte[]> generateQrCodeForGaTicket(PurchasedGATicket gaTicketGroup) {
+        log.info("Generating {} QR Codes for GA ticket group [ID={}]", gaTicketGroup.getQuantity(), gaTicketGroup.getId());
 
-        // Logic tương tự như vé ghế
-        UUID uniqueIdentifier = UUID.randomUUID();
-        String qrContent = buildSecureQrContent(uniqueIdentifier);
-        byte[] qrImage = generateQrImage(qrContent);
+        // Nhờ có @OneToMany, chúng ta có thể lấy danh sách QR đã có một cách tự nhiên
+        List<TicketQrCode> existingQrs = gaTicketGroup.getQrCodes();
 
-        TicketQrCode qrEntity = new TicketQrCode();
-        qrEntity.setId(uniqueIdentifier);
-        qrEntity.setPurchasedGaTicket(gaTicketGroup);
-        qrEntity.setQrCodeData(qrContent);
-        qrEntity.setGeneratedAt(Instant.from(LocalDateTime.now()));
+        // Nếu đã đủ số lượng, chỉ cần tạo lại ảnh và trả về
+        if (existingQrs.size() >= gaTicketGroup.getQuantity()) {
+            log.warn("Sufficient QR codes ({}) already exist for GA group [ID={}]. Re-generating images.", existingQrs.size(), gaTicketGroup.getId());
+            return existingQrs.stream()
+                    .map(qr -> generateQrImage(qr.getQrCodeData()))
+                    .collect(Collectors.toList());
+        }
 
-        ticketQrCodeRepository.save(qrEntity);
+        // Nếu chưa đủ, tạo số lượng còn thiếu
+        int neededCount = gaTicketGroup.getQuantity() - existingQrs.size();
+        log.info("Need to generate {} more QR codes for GA group [ID={}]", neededCount, gaTicketGroup.getId());
 
-        log.info("Successfully created and saved QR Code [ID={}] for GA ticket group.", uniqueIdentifier);
-        return qrImage;
+        List<TicketQrCode> newlyGeneratedQrs = new ArrayList<>();
+        for (int i = 0; i < neededCount; i++) {
+            UUID uniqueIdentifier = UUID.randomUUID();
+            String qrContent = buildSecureQrContent(uniqueIdentifier);
+
+            TicketQrCode qrEntity = new TicketQrCode();
+            // === Thay đổi quan trọng ===
+            qrEntity.setPurchasedGaTicket(gaTicketGroup); // Thiết lập mối quan hệ
+            qrEntity.setUniqueIdentifier(uniqueIdentifier.toString());
+            qrEntity.setQrCodeData(qrContent);
+            // Không cần save riêng lẻ nếu bạn dùng CascadeType.ALL
+
+            newlyGeneratedQrs.add(qrEntity);
+        }
+
+        // Thêm các QR mới vào danh sách của entity cha
+        gaTicketGroup.getQrCodes().addAll(newlyGeneratedQrs);
+        // Khi transaction này commit, Hibernate sẽ tự động lưu các QR code mới nhờ CascadeType
+        // ticketQrCodeRepository.saveAll(newlyGeneratedQrs); // Hoặc bạn có thể save tường minh nếu không dùng Cascade
+
+        // Trả về danh sách ảnh của TẤT CẢ các QR code (cũ và mới)
+        return gaTicketGroup.getQrCodes().stream()
+                .map(qr -> generateQrImage(qr.getQrCodeData()))
+                .collect(Collectors.toList());
     }
+
 
     // =================================================================
     // === PRIVATE HELPER METHODS ===

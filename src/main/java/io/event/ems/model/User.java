@@ -1,5 +1,6 @@
 package io.event.ems.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -58,6 +59,7 @@ public class User {
 
     // --- THÊM QUAN HỆ OneToOne VỚI UserSettings ---
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private UserSettings settings;
 
     // --- GETTER/SETTER CHO SETTINGS (QUAN TRỌNG) ---

@@ -1,25 +1,8 @@
 package io.event.ems.service.impl;
 
-import java.util.Arrays;
-import java.util.Optional;
-import java.util.UUID;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
-
 import io.event.ems.dto.UserRequestDTO;
 import io.event.ems.dto.UserResponseDTO;
-import io.event.ems.exception.DuplicateEmailException;
-import io.event.ems.exception.DuplicateUsernameException;
-import io.event.ems.exception.FileStorageException;
-import io.event.ems.exception.FileValidationException;
-import io.event.ems.exception.InvalidPasswordException;
-import io.event.ems.exception.StatusNotFoundException;
-import io.event.ems.exception.UserNotFoundException;
+import io.event.ems.exception.*;
 import io.event.ems.mapper.UserMapper;
 import io.event.ems.model.Role;
 import io.event.ems.model.StatusCode;
@@ -30,6 +13,16 @@ import io.event.ems.repository.UserRepository;
 import io.event.ems.service.FileStorageService;
 import io.event.ems.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -42,7 +35,7 @@ public class UserServiceImpl implements UserService {
     private final StatusCodeRepository statusCodeRepository;
     private final FileStorageService fileStorageService;
     private static final long MAX_FILE_SIZE = 5_000_000; // 5MB
-    private static final String[] ALLOWED_IMAGE_TYPES = { "image/jpeg", "image/png", "image/gif" };
+    private static final String[] ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif"};
 
     @Override
     public UserResponseDTO createUser(UserRequestDTO userRequestDTO) {
@@ -217,6 +210,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public String storeAvatar(UUID userId, MultipartFile file) {
         // Validate file
         validateAvatarFile(file);
@@ -232,8 +226,10 @@ public class UserServiceImpl implements UserService {
                 fileStorageService.deleteFile(oldAvatarUrl);
             }
 
-            // Lưu file mới
-            String url = fileStorageService.storeFile(file, "avatars/" + userId);
+            // Đường dẫn trong bucket: avatars/user-id/
+            String destinationPath = "avatars/" + userId.toString();
+            String url = fileStorageService.storeFile(file, destinationPath);
+
             user.setAvatarUrl(url);
             userRepository.save(user);
             return url;

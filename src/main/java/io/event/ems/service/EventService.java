@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,14 +23,14 @@ public interface EventService {
 
     Optional<EventResponseDTO> getEventBySlug(String slug);
 
-    Page<EventResponseDTO> getAllEvents(Pageable pageable);
+    Page<EventResponseDTO> getAllEventsForManagement(Pageable pageable);
 
     Page<EventResponseDTO> getPublicEvents(Pageable pageable);
 
     Page<EventResponseDTO> searchEvents(String keyword, Pageable pageable);
 
     Page<EventResponseDTO> searchEventsWithFilters(String keyword,
-                                                   UUID categoryId,
+                                                   List<UUID> categoryIds,
                                                    Integer statusId,
                                                    Boolean isPublic,
                                                    LocalDateTime startDate,
