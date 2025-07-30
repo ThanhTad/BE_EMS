@@ -2,6 +2,8 @@ package io.event.ems.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -9,7 +11,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "ticket_qr_codes")
+@Table(name = "ticket_qr_codes", indexes = {
+        @Index(name = "idx_ticketqrcode_eventseat", columnList = "event_seat_id", unique = true),
+        @Index(name = "idx_ticketqrcode_uniqueidentifier", columnList = "uniqueIdentifier", unique = true)
+})
 @Data
 public class TicketQrCode {
 
@@ -21,9 +26,11 @@ public class TicketQrCode {
     @JoinColumn(name = "event_seat_id")
     private EventSeatStatus eventSeat;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchased_ga_ticket_id")
-    private PurchasedGaTicket purchasedGaTicket;
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private PurchasedGATicket purchasedGaTicket;
 
     @Column(nullable = false, unique = true, length = 100)
     private String uniqueIdentifier;
@@ -37,4 +44,8 @@ public class TicketQrCode {
 
     @Column
     private Instant checkInAt;
+
+    // Thêm trường version cho optimistic locking
+    @Version
+    private Long version;
 }

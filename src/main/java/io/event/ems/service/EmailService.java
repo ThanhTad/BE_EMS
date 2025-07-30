@@ -8,6 +8,6 @@ public interface EmailService {
 
     void sendPurchaseConfirmationEmail(EmailDetails emailDetails);
 
-    public void sendWelcomeEmail(String to, String username);
+    void sendWelcomeEmail(String to, String username);
 
 }

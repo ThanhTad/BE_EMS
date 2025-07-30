@@ -2,15 +2,19 @@ package io.event.ems.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
 @Data
 @Table(name = "purchased_ga_tickets")
-public class PurchasedGaTicket {
+public class PurchasedGATicket {
 
     @Id
     @UuidGenerator(style = UuidGenerator.Style.RANDOM)
@@ -31,6 +35,13 @@ public class PurchasedGaTicket {
     @Column(name = "price_per_ticket", nullable = false, precision = 12, scale = 2)
     private BigDecimal pricePerTicket;
 
-    @OneToOne(mappedBy = "purchasedGaTicket", cascade = CascadeType.ALL)
-    private TicketQrCode ticketQrCode;
+    @OneToMany(
+            mappedBy = "purchasedGaTicket",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private List<TicketQrCode> qrCodes = new ArrayList<>();
 }

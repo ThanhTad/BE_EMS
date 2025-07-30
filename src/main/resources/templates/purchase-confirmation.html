@@ -1,56 +1,505 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Xác nhận đơn hàng</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
     <style>
-        /* CSS styles for your email */
+        /* Reset styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px 0;
         }
 
-        .container {
-            padding: 20px;
+        .email-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
 
-        .ticket-item {
-            border-bottom: 1px solid #eee;
-            padding: 10px 0;
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
         }
 
-        .qr-code {
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .transaction-id {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
             margin-top: 10px;
+            font-size: 14px;
+        }
+
+        /* Content */
+        .content {
+            padding: 30px 20px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .intro-text {
+            margin-bottom: 25px;
+            font-size: 16px;
+            color: #555;
+        }
+
+        /* Event Info */
+        .event-info {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 25px;
+            border-radius: 10px;
+            margin: 25px 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .event-info h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .event-info h3:before {
+            content: "🎫";
+            margin-right: 10px;
+            font-size: 24px;
+        }
+
+        .event-detail {
+            display: flex;
+            margin: 10px 0;
+            align-items: center;
+        }
+
+        .event-detail strong {
+            min-width: 100px;
+            color: #495057;
+            font-weight: 600;
+        }
+
+        .event-detail span {
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        /* Ticket Groups */
+        .ticket-group {
+            margin: 30px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .ticket-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            font-size: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ticket-count {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        thead {
+            background-color: #f8f9fa;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        th {
+            font-weight: 600;
+            color: #495057;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            color: #6c757d;
+        }
+
+        tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* QR Code Section */
+        .qr-images {
+            padding: 20px;
+            background-color: #f8f9fa;
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .qr-images img {
+            width: 120px;
+            height: 120px;
+            margin: 10px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Total Amount */
+        .total-amount {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 30px 0;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .total-amount span {
+            font-size: 28px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #2c3e50;
+            color: white;
+            padding: 25px 20px;
+            text-align: center;
+            font-size: 16px;
+            line-height: 1.8;
+        }
+
+        .footer:before {
+            content: "🎉";
+            display: block;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        /* Instructions */
+        .instructions {
+            background-color: #e8f4fd;
+            border-left: 4px solid #3498db;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .instructions h4 {
+            color: #2980b9;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        /* Responsive Design */
+        @media only screen and (max-width: 768px) {
+            body {
+                padding: 10px 0;
+            }
+
+            .email-container {
+                margin: 0 10px;
+                border-radius: 8px;
+            }
+
+            .header {
+                padding: 20px 15px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .content {
+                padding: 20px 15px;
+            }
+
+            .event-info {
+                padding: 20px 15px;
+            }
+
+            .event-detail {
+                flex-direction: column;
+                align-items: flex-start;
+                margin: 15px 0;
+            }
+
+            .event-detail strong {
+                min-width: auto;
+                margin-bottom: 5px;
+            }
+
+            .ticket-header {
+                flex-direction: column;
+                text-align: center;
+                gap: 10px;
+            }
+
+            /* Table responsive */
+            table {
+                font-size: 14px;
+            }
+
+            th, td {
+                padding: 8px 10px;
+            }
+
+            th:first-child,
+            td:first-child {
+                width: 15%;
+            }
+
+            .qr-images img {
+                width: 100px;
+                height: 100px;
+                margin: 8px;
+            }
+
+            .total-amount {
+                padding: 15px;
+                font-size: 18px;
+            }
+
+            .total-amount span {
+                font-size: 24px;
+            }
+
+            .footer {
+                padding: 20px 15px;
+                font-size: 14px;
+            }
+        }
+
+        @media only screen and (max-width: 480px) {
+            .email-container {
+                margin: 0 5px;
+                border-radius: 4px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .greeting {
+                font-size: 16px;
+            }
+
+            .intro-text {
+                font-size: 14px;
+            }
+
+            .event-info h3 {
+                font-size: 18px;
+            }
+
+            /* Stack table on very small screens */
+            table, thead, tbody, th, td, tr {
+                display: block;
+            }
+
+            thead tr {
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
+            }
+
+            tr {
+                border: 1px solid #ccc;
+                margin-bottom: 10px;
+                padding: 10px;
+                border-radius: 8px;
+                background-color: #f9f9f9;
+            }
+
+            td {
+                border: none;
+                position: relative;
+                padding: 8px 8px 8px 25%;
+                white-space: normal;
+                text-align: left;
+            }
+
+            td:before {
+                content: attr(data-label) ": ";
+                position: absolute;
+                left: 6px;
+                width: 20%;
+                padding-right: 10px;
+                white-space: nowrap;
+                font-weight: bold;
+                color: #333;
+            }
+
+            .qr-images {
+                padding: 15px 10px;
+            }
+
+            .qr-images img {
+                width: 80px;
+                height: 80px;
+                margin: 5px;
+            }
+
+            .total-amount {
+                font-size: 16px;
+            }
+
+            .total-amount span {
+                font-size: 20px;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background-color: white;
+                padding: 0;
+            }
+
+            .email-container {
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }
+
+            .header {
+                background: #667eea !important;
+                -webkit-print-color-adjust: exact;
+            }
+
+            .qr-images img {
+                border: 1px solid #000;
+            }
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1 th:text="|Xác nhận đơn hàng cho sự kiện: ${eventName}|">Xác nhận đơn hàng</h1>
-    <p>Chào <strong th:text="${customerName}">bạn</strong>,</p>
-    <p>Cảm ơn bạn đã đặt vé. Dưới đây là thông tin chi tiết về đơn hàng của bạn (Mã giao dịch: <b
-            th:text="${transactionId}"></b>).</p>
-    <p>Vui lòng xuất trình mã QR tương ứng với vé của bạn tại cổng soát vé.</p>
-
-    <hr/>
-
-    <!-- Lặp qua danh sách các vé đã mua -->
-    <div th:each="ticket : ${tickets}" class="ticket-item">
-        <h3 th:text="${ticket.ticketName}">Tên vé</h3>
-        <ul>
-            <li><strong>Số lượng:</strong> <span th:text="${ticket.quantity}">1</span></li>
-            <li><strong>Đơn giá:</strong> <span
-                    th:text="${#numbers.formatDecimal(ticket.pricePerItem, 0, 'COMMA', 0, 'POINT')} + ' VNĐ'">500,000 VNĐ</span>
-            </li>
-            <li><strong>Chi tiết:</strong> <span th:text="${ticket.details}">Khu A - Hàng B - Ghế 12</span></li>
-        </ul>
-        <!-- Nhúng ảnh QR Code bằng Content-ID (cid) -->
-        <div class="qr-code">
-            <img th:src="|cid:${ticket.qrCodeCid}|" alt="QR Code" width="200"/>
+<div class="email-container">
+    <div class="header">
+        <h1 th:text="|Xác nhận đơn hàng - ${eventName}|">Xác nhận đơn hàng</h1>
+        <div class="transaction-id">
+            Mã giao dịch: <strong th:text="${transactionId}">ABC123456</strong>
         </div>
     </div>
 
-    <hr/>
-    <p>Hẹn gặp bạn tại sự kiện!</p>
+    <div class="content">
+        <div class="greeting">
+            Chào <strong th:text="${customerName}">bạn</strong>,
+        </div>
+
+        <div class="intro-text">
+            Cảm ơn bạn đã đặt vé tham dự sự kiện. Chúng tôi đã xác nhận đơn hàng của bạn thành công.
+        </div>
+
+        <div class="event-info">
+            <h3>Thông tin sự kiện</h3>
+            <div class="event-detail">
+                <strong>Sự kiện:</strong>
+                <span th:text="${eventName}">Tên sự kiện</span>
+            </div>
+            <div class="event-detail">
+                <strong>Thời gian:</strong>
+                <span th:text="${eventTime}">20/07/2025 - 19:00</span>
+            </div>
+            <div class="event-detail">
+                <strong>Địa điểm:</strong>
+                <span th:text="${venue}">Nhà hát Thành phố</span>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h4>📱 Hướng dẫn sử dụng</h4>
+            <p>Vui lòng xuất trình mã QR tương ứng tại cổng vào sự kiện. Mỗi vé có một mã QR riêng biệt.</p>
+        </div>
+
+        <!-- Vòng lặp qua các nhóm vé -->
+        <div th:each="group : ${ticketGroups}" class="ticket-group">
+            <div class="ticket-header">
+                <span th:text="${group.ticketName}">Tên vé</span>
+                <span class="ticket-count" th:text="'Số lượng: ' + ${#lists.size(group.tickets)}">Số lượng: 2</span>
+            </div>
+
+            <table>
+                <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Chi tiết</th>
+                    <th>Giá vé</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="ticket, stat : ${group.tickets}">
+                    <td th:text="${stat.index + 1}" data-label="STT">1</td>
+                    <td th:text="${ticket.details}" data-label="Chi tiết">Khu A - Hàng B - Ghế 10</td>
+                    <td th:text="${#numbers.formatDecimal(ticket.pricePerItem, 0, 'COMMA', 0, 'POINT')} + ' VNĐ'"
+                        data-label="Giá vé">
+                        500,000 VNĐ
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="qr-images">
+                <img th:each="ticket : ${group.tickets}"
+                     th:src="|cid:${ticket.qrCodeCid}|"
+                     alt="QR Code"/>
+            </div>
+        </div>
+
+        <div class="total-amount">
+            💰 Tổng thanh toán:
+            <span th:text="${#numbers.formatDecimal(totalAmount, 0, 'COMMA', 0, 'POINT')} + ' VNĐ'">1,000,000 VNĐ</span>
+        </div>
+    </div>
+
+    <div class="footer">
+        Cảm ơn bạn đã tin tưởng và đồng hành cùng chúng tôi.<br>
+        Hẹn gặp lại tại sự kiện!
+    </div>
 </div>
 </body>
 </html>

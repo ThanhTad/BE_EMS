@@ -31,7 +31,7 @@ public class TicketPurchase {
     @CreationTimestamp
     private LocalDateTime purchaseDate;
 
-    @Column(precision = 12, scale = 2)
+    @Column(name = "sub_total", precision = 12, scale = 2)
     private BigDecimal subTotal;
 
     @Column(precision = 12, scale = 2)

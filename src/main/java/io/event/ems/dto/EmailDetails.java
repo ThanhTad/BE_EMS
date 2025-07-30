@@ -19,27 +19,38 @@ public class EmailDetails {
     private String toEmail;
     private String customerName;
     private String eventName;
-    private String transactionId; // Hoặc purchaseId
+    private String transactionId;
+
+    private String eventTime;
+    private String venue;
+    private BigDecimal totalAmount;
 
     // --- Danh sách các vé đã mua để hiển thị trong email ---
-    private List<TicketInfo> purchasedTickets;
+    private List<TicketGroupInfo> ticketGroups;
 
     // --- Dữ liệu ảnh QR Code để nhúng vào email ---
     // Key: Content-ID (CID) để tham chiếu trong template HTML.
     // Value: Dữ liệu byte của ảnh QR.
     private Map<String, byte[]> inlineQrImages;
 
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TicketGroupInfo {
+        private String ticketName;
+        private List<TicketInfo> tickets; // Danh sách các vé cá nhân trong nhóm này
+    }
+
     /**
-     * Lớp con chứa thông tin chi tiết của một mục vé đã mua.
+     * Lớp con chứa thông tin chi tiết của MỘT vé đơn lẻ.
+     * Bỏ các trường đã chuyển lên cấp nhóm.
      */
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TicketInfo {
-        private String ticketName;
-        private int quantity;
         private BigDecimal pricePerItem;
-        private String details; // e.g., "Khu A - Hàng B - Ghế 12" hoặc "Vé vào cửa"
+        private String details; // e.g., "Khu A - Hàng B - Ghế 12" hoặc "Vé vào cửa tự do"
         private String qrCodeCid; // Content-ID để liên kết với ảnh QR trong Map
     }
 }

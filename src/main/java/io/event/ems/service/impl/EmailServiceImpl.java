@@ -70,6 +70,7 @@ public class EmailServiceImpl implements EmailService {
     @Async
     public void sendPurchaseConfirmationEmail(EmailDetails emailDetails) {
         final String toEmail = emailDetails.getToEmail();
+        // Bạn có thể giữ nguyên subject hoặc làm cho nó chi tiết hơn
         final String subject = "Xác nhận đặt vé thành công - Sự kiện: " + emailDetails.getEventName();
         log.info("Attempting to send Purchase Confirmation email to {} for transaction {}", toEmail, emailDetails.getTransactionId());
 
@@ -77,12 +78,22 @@ public class EmailServiceImpl implements EmailService {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, StandardCharsets.UTF_8.name());
 
-            // 1. Chuẩn bị Context cho Thymeleaf từ EmailDetails
+            // 1. CHUẨN BỊ CONTEXT CHO THYMELEAF (PHẦN CẦN THAY ĐỔI)
             Context context = new Context();
+
+            // Các biến cơ bản
             context.setVariable("customerName", emailDetails.getCustomerName());
             context.setVariable("eventName", emailDetails.getEventName());
             context.setVariable("transactionId", emailDetails.getTransactionId());
-            context.setVariable("tickets", emailDetails.getPurchasedTickets());
+
+            // CÁC BIẾN MỚI ĐƯỢC BỔ SUNG
+            context.setVariable("eventTime", emailDetails.getEventTime());
+            context.setVariable("venue", emailDetails.getVenue());
+            context.setVariable("totalAmount", emailDetails.getTotalAmount());
+
+            // BIẾN CHỨA DỮ LIỆU ĐÃ GOM NHÓM
+            // Tên biến "ticketGroups" phải khớp với tên được dùng trong template (th:each="group : ${ticketGroups}")
+            context.setVariable("ticketGroups", emailDetails.getTicketGroups());
 
             // 2. Render template HTML
             String htmlBody = templateEngine.process(PURCHASE_CONFIRMATION_TEMPLATE_NAME, context);
@@ -93,7 +104,7 @@ public class EmailServiceImpl implements EmailService {
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
 
-            // 4. Nhúng các ảnh QR code vào email
+            // 4. Nhúng các ảnh QR code vào email (Phần này không thay đổi)
             if (emailDetails.getInlineQrImages() != null && !emailDetails.getInlineQrImages().isEmpty()) {
                 for (Map.Entry<String, byte[]> entry : emailDetails.getInlineQrImages().entrySet()) {
                     String cid = entry.getKey();

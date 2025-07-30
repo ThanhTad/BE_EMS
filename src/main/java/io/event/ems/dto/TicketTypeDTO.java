@@ -11,7 +11,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class TicketTypeDTO {
 
-    private UUID ticketId;
+    private UUID id;
     private String name;
     private BigDecimal price;
     private String description;

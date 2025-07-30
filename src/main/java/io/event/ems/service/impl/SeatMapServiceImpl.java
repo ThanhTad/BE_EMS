@@ -1,4 +1,4 @@
 package io.event.ems.service.impl;
 
-public class VenueServiceImpl {
+public class SeatMapServiceImpl {
 }

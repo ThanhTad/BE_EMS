@@ -1,6 +1,7 @@
 package io.event.ems.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.event.ems.dto.HoldDetailsResponseDTO;
 import io.event.ems.dto.HoldResponseDTO;
 import io.event.ems.dto.TicketHoldRequestDTO;
 import io.event.ems.model.HoldData;
@@ -9,7 +10,9 @@ import io.event.ems.repository.TicketRepository;
 import io.event.ems.service.TicketHoldService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -90,6 +93,83 @@ public class TicketHoldServiceImpl implements TicketHoldService {
             log.error("Failed to parse hold data during checkout [ID={}]", holdId, e);
             throw new RuntimeException("Error processing hold data.");
         }
+    }
+
+    @Override
+    public HoldDetailsResponseDTO getHoldDetails(UUID holdId, UUID userId) {
+        String holdKey = HOLD_KEY_PREFIX + holdId;
+        String holdDataJson = redisTemplate.opsForValue().get(holdKey);
+
+        if (holdDataJson == null) {
+            throw new IllegalArgumentException("Hold not found or has expired.");
+        }
+
+        try {
+            HoldData holdData = objectMapper.readValue(holdDataJson, HoldData.class);
+            if (!holdData.getUserId().equals(userId)) {
+                throw new SecurityException("User not authorized to access this hold.");
+            }
+
+            log.info("Retrieved hold details [ID={}] for user [ID={}]", holdId, userId);
+
+            // Convert HoldData to HoldDetailsResponseDTO (không expose userId)
+            return new HoldDetailsResponseDTO(
+                    holdData.getHoldId(),
+                    holdData.getEventId(),
+                    holdData.getExpiresAt(),
+                    holdData.getRequest()
+            );
+        } catch (Exception e) {
+            log.error("Failed to parse hold data [ID={}]", holdId, e);
+            throw new RuntimeException("Error retrieving hold details.");
+        }
+    }
+
+    @Override
+    public void cleanupExpiredHolds() {
+        int cleanedCount = 0;
+        int scannedCount = 0;
+        LocalDateTime now = LocalDateTime.now();
+
+        // Sử dụng SCAN để lặp qua các key một cách an toàn
+        // match(HOLD_KEY_PREFIX + "*") -> chỉ quét các key bắt đầu bằng prefix của chúng ta
+        // count(100) -> gợi ý Redis trả về khoảng 100 key mỗi lần quét
+        ScanOptions scanOptions = ScanOptions.scanOptions().match(HOLD_KEY_PREFIX + "*").count(100).build();
+
+        try (Cursor<String> cursor = redisTemplate.scan(scanOptions)) {
+            while (cursor.hasNext()) {
+                String holdKey = cursor.next();
+                scannedCount++;
+
+                String holdDataJson = redisTemplate.opsForValue().get(holdKey);
+                if (holdDataJson == null) {
+                    continue;
+                }
+
+                try {
+                    HoldData holdData = objectMapper.readValue(holdDataJson, HoldData.class);
+                    if (holdData.getExpiresAt().isBefore(now)) {
+                        log.warn("Hold [ID={}] has expired at {}. Releasing resources.", holdData.getHoldId(), holdData.getExpiresAt());
+
+                        releaseResources(holdData);
+                        redisTemplate.delete(holdKey);
+
+                        cleanedCount++;
+                    }
+                } catch (Exception e) {
+                    log.error("Error processing hold key: {}. Removing potentially invalid key.", holdKey, e);
+                    redisTemplate.delete(holdKey); // Xóa key lỗi để tránh lặp lại
+                }
+            }
+        } catch (Exception e) {
+            log.error("An error occurred during the Redis SCAN operation for hold cleanup.", e);
+        }
+
+        log.debug("Scanned {} keys for cleanup.", scannedCount);
+        if (cleanedCount > 0) {
+            log.info("Successfully cleaned up {} expired holds.", cleanedCount);
+        }
+
     }
 
     @Override

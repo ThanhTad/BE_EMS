@@ -30,8 +30,9 @@ public class TicketHoldRequestDTO {
     @JsonIgnore
     public boolean isValidForMode() {
         return switch (selectionMode) {
-            case GENERAL_ADMISSION, ZONED_ADMISSION -> gaItems != null && !gaItems.isEmpty() && seatIds == null;
-            case RESERVED_SEATING -> seatIds != null && !seatIds.isEmpty() && gaItems == null;
+            case GENERAL_ADMISSION, ZONED_ADMISSION ->
+                    gaItems != null && !gaItems.isEmpty() && (seatIds == null || seatIds.isEmpty());
+            case RESERVED_SEATING -> seatIds != null && !seatIds.isEmpty() && (gaItems == null || gaItems.isEmpty());
         };
     }
 }

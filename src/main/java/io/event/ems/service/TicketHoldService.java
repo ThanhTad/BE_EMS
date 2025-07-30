@@ -1,5 +1,6 @@
 package io.event.ems.service;
 
+import io.event.ems.dto.HoldDetailsResponseDTO;
 import io.event.ems.dto.HoldResponseDTO;
 import io.event.ems.dto.TicketHoldRequestDTO;
 import io.event.ems.model.HoldData;
@@ -15,4 +16,8 @@ public interface TicketHoldService {
     HoldData getAndFinalizeHold(UUID holdId, UUID userId);
 
     void releaseResourcesForFailedCheckout(HoldData holdData);
+
+    HoldDetailsResponseDTO getHoldDetails(UUID holdId, UUID userId);
+
+    void cleanupExpiredHolds();
 }
