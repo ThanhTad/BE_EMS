@@ -1,6 +1,7 @@
 package io.event.ems.service;
 
 import io.event.ems.dto.VenueDTO;
+import io.event.ems.dto.VenueRequestDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -8,15 +9,13 @@ import java.util.UUID;
 
 public interface VenueService {
 
-    VenueDTO createVenue(VenueDTO venueDTO);
+    Page<VenueDTO> getAllVenues(String keyword, Pageable pageable);
 
     VenueDTO getVenueById(UUID id);
 
-    Page<VenueDTO> getAllVenues(Pageable pageable);
+    VenueDTO createVenue(VenueRequestDTO dto);
 
-    VenueDTO updateVenue(UUID id, VenueDTO venueDTO);
+    VenueDTO updateVenue(UUID id, VenueRequestDTO dto);
 
     void deleteVenue(UUID id);
-
-
 }

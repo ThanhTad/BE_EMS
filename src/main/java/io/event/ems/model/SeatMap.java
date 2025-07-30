@@ -51,12 +51,35 @@ public class SeatMap {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    /**
+     * Thêm một SeatSection vào SeatMap này và đồng bộ hóa mối quan hệ.
+     *
+     * @param section SeatSection cần thêm.
+     */
+    public void addSection(SeatSection section) {
+        if (section != null) {
+            sections.add(section);
+            section.setSeatMap(this);
+        }
+    }
+
+    /**
+     * Xóa một SeatSection khỏi SeatMap này và đồng bộ hóa mối quan hệ.
+     *
+     * @param section SeatSection cần xóa.
+     */
+    public void removeSection(SeatSection section) {
+        if (section != null) {
+            sections.remove(section);
+            section.setSeatMap(null);
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         // Chỉ cần class là con của SeatSection là được, không cần chính xác là SeatSection
-        if (o == null || !(o instanceof SeatSection)) return false;
-        SeatSection that = (SeatSection) o;
+        if (!(o instanceof SeatSection that)) return false;
         // Chỉ so sánh dựa trên ID.
         // ID không được null và phải bằng nhau.
         return id != null && id.equals(that.getId());
@@ -68,4 +91,5 @@ public class SeatMap {
         // Cách viết này phổ biến và an toàn.
         return id != null ? id.hashCode() : super.hashCode();
     }
+
 }

@@ -53,12 +53,35 @@ public class SeatSection {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    /**
+     * Thêm một Seat vào SeatSection này và đồng bộ hóa mối quan hệ.
+     *
+     * @param seat Seat cần thêm.
+     */
+    public void addSeat(Seat seat) {
+        if (seat != null) {
+            seats.add(seat);
+            seat.setSection(this);
+        }
+    }
+
+    /**
+     * Xóa một Seat khỏi SeatSection này và đồng bộ hóa mối quan hệ.
+     *
+     * @param seat Seat cần xóa.
+     */
+    public void removeSeat(Seat seat) {
+        if (seat != null) {
+            seats.remove(seat);
+            seat.setSection(null);
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         // Chỉ cần class là con của SeatSection là được, không cần chính xác là SeatSection
-        if (o == null || !(o instanceof Seat)) return false;
-        Seat that = (Seat) o;
+        if (!(o instanceof Seat that)) return false;
         // Chỉ so sánh dựa trên ID.
         // ID không được null và phải bằng nhau.
         return id != null && id.equals(that.getId());

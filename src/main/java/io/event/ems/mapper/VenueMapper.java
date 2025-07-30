@@ -1,16 +1,20 @@
 package io.event.ems.mapper;
 
 import io.event.ems.dto.VenueDTO;
+import io.event.ems.dto.VenueRequestDTO;
 import io.event.ems.model.Venue;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 @Mapper(componentModel = "spring")
 public interface VenueMapper {
 
-    VenueDTO toDto(Venue venue);
+    VenueDTO toDTO(Venue venue);
 
-    Venue toEntity(VenueDTO venueDTO);
+    @Mapping(target = "updatedAt", ignore = true)
+    Venue toEntity(VenueRequestDTO dto);
 
-    void updateVenueFromDto(VenueDTO dto, @MappingTarget Venue entity);
+    @Mapping(target = "updatedAt", ignore = true)
+    void updateVenueFromDTO(VenueRequestDTO dto, @MappingTarget Venue entity);
 }

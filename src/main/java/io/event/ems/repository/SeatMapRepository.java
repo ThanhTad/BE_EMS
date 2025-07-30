@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,4 +21,9 @@ public interface SeatMapRepository extends JpaRepository<SeatMap, UUID> {
             "LEFT JOIN FETCH s.seats " +
             "WHERE sm.id = :seatMapId")
     Optional<SeatMap> findByIdWithSectionsAndSeats(@Param("seatMapId") UUID seatMapId);
+
+    List<SeatMap> findByVenueId(UUID venueId);
+
+    @Query("SELECT sm FROM SeatMap sm LEFT JOIN FETCH sm.sections s LEFT JOIN FETCH s.seats WHERE sm.id = :id")
+    Optional<SeatMap> findByIdWithFullDetails(@Param("id") UUID id);
 }
